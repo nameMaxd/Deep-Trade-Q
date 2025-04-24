@@ -71,25 +71,48 @@ class Agent:
             self.target_model.set_weights(self.model.get_weights())
 
     def _model(self):
-        """Creates the model (с BatchNorm, Dropout и L2-регуляризацией)"""
-        from keras.layers import Dropout, BatchNormalization
+        """Создает модель: Dense или LSTM (выбор через self.model_type)"""
+        from keras.layers import Dropout, BatchNormalization, LSTM, Dense, Input, Reshape
         from keras.regularizers import l2
-        model = Sequential()
-        model.add(Dense(units=128, activation="relu", input_dim=self.state_size, kernel_regularizer=l2(1e-4)))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.2))
-        model.add(Dense(units=256, activation="relu", kernel_regularizer=l2(1e-4)))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.3))
-        model.add(Dense(units=256, activation="relu", kernel_regularizer=l2(1e-4)))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.3))
-        model.add(Dense(units=128, activation="relu", kernel_regularizer=l2(1e-4)))
-        model.add(BatchNormalization())
-        model.add(Dropout(0.2))
-        model.add(Dense(units=self.action_size))
-        model.compile(loss=self.loss, optimizer=self.optimizer)
-        return model
+        from keras.models import Sequential
+        if hasattr(self, 'model_type') and self.model_type == 'lstm':
+            # LSTM-архитектура, shape (timesteps, features)
+            model = Sequential()
+            model.add(Reshape((self.state_size, 1), input_shape=(self.state_size,)))
+            model.add(LSTM(128, return_sequences=True, kernel_regularizer=l2(1e-4)))
+            model.add(BatchNormalization())
+            model.add(Dropout(0.2))
+            model.add(LSTM(256, return_sequences=True, kernel_regularizer=l2(1e-4)))
+            model.add(BatchNormalization())
+            model.add(Dropout(0.3))
+            model.add(LSTM(256, return_sequences=False, kernel_regularizer=l2(1e-4)))
+            model.add(BatchNormalization())
+            model.add(Dropout(0.3))
+            model.add(Dense(128, activation="relu", kernel_regularizer=l2(1e-4)))
+            model.add(BatchNormalization())
+            model.add(Dropout(0.2))
+            model.add(Dense(self.action_size))
+            model.compile(loss=self.loss, optimizer=self.optimizer)
+            return model
+        else:
+            # Dense-архитектура (по умолчанию)
+            model = Sequential()
+            model.add(Dense(units=128, activation="relu", input_dim=self.state_size, kernel_regularizer=l2(1e-4)))
+            model.add(BatchNormalization())
+            model.add(Dropout(0.2))
+            model.add(Dense(units=256, activation="relu", kernel_regularizer=l2(1e-4)))
+            model.add(BatchNormalization())
+            model.add(Dropout(0.3))
+            model.add(Dense(units=256, activation="relu", kernel_regularizer=l2(1e-4)))
+            model.add(BatchNormalization())
+            model.add(Dropout(0.3))
+            model.add(Dense(units=128, activation="relu", kernel_regularizer=l2(1e-4)))
+            model.add(BatchNormalization())
+            model.add(Dropout(0.2))
+            model.add(Dense(units=self.action_size))
+            model.compile(loss=self.loss, optimizer=self.optimizer)
+            return model
+
 
     def remember(self, state, action, reward, next_state, done):
         """Adds relevant data to memory

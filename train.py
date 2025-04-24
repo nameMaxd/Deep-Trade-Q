@@ -5,7 +5,7 @@ Usage:
   train.py <stock> [<dummy>] [--strategy=<strategy>]
     [--window-size=<window-size>] [--batch-size=<batch-size>]
     [--episode-count=<episode-count>] [--model-name=<model-name>]
-    [--pretrained] [--debug]
+    [--pretrained] [--debug] [--model-type=<model-type>]
 
 Options:
   --strategy=<strategy>             Q-learning strategy to use for training the network. Options:
@@ -21,6 +21,8 @@ Options:
   --pretrained                      Specifies whether to continue training a previously
                                     trained model (reads `model-name`).
   --debug                           Specifies whether to use verbose logs during eval operation.
+  --model-type=<model-type>         Model type: 'dense' (default) or 'lstm'.
+
 """
 
 import logging
@@ -51,7 +53,7 @@ tf.config.threading.set_inter_op_parallelism_threads(os.cpu_count())
 
 def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
          strategy="t-dqn", model_name=None, pretrained=False,
-         debug=False):
+         debug=False, model_type='dense'):
     import numpy as np
     """ Finetune the stock trading bot on a large interval (2019-01-01 — 2024-06-30).
     Logs each epoch to train_finetune.log, uses tqdm for progress.
@@ -114,6 +116,10 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
 
     # Initialize agent with dynamic window_size (state_size computed internally)
     agent = Agent(window_size, strategy=strategy, pretrained=pretrained, model_name=model_name)
+    agent.model_type = model_type
+    if model_type == 'lstm' and model_name and not model_name.endswith('_LSTM'):
+        model_name += '_LSTM'
+        agent.model_name = model_name
 
     best_profit = None
     best_epoch = None
@@ -158,20 +164,21 @@ if __name__ == "__main__":
     args = docopt(__doc__)
 
     stock = args["<stock>"]
-    strategy = args["--strategy"]
     window_size = int(args["--window-size"])
     batch_size = int(args["--batch-size"])
     ep_count = int(args["--episode-count"])
+    strategy = args["--strategy"]
     model_name = args["--model-name"]
     pretrained = args["--pretrained"]
     debug = args["--debug"]
+    model_type = args.get("--model-type") or 'dense'
 
-    coloredlogs.install(level="DEBUG")
-    # switch_k_backend_device()  # disabled to enable GPU and CPU threading
+    # LSTM: 500 эпох, earlystop=50
+    if model_type == 'lstm':
+        ep_count = 500
+        earlystop_patience = 50
+    else:
+        earlystop_patience = None
 
-    try:
-        main(stock, window_size, batch_size, ep_count,
-             strategy=strategy, model_name=model_name,
-             pretrained=pretrained, debug=debug)
-    except KeyboardInterrupt:
-        print("Aborted!")
+    main(stock, window_size=window_size, batch_size=batch_size, ep_count=ep_count,
+         strategy=strategy, model_name=model_name, pretrained=pretrained, debug=debug, model_type=model_type)

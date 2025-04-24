@@ -33,7 +33,9 @@ class Agent:
         self.strategy = strategy
 
         # agent config
-        self.state_size = WINDOW_SIZE - 1 + 4    # теперь включает vol_ratio
+        # Используем переданный window_size для расчёта размера состояния
+        self.window_size = state_size
+        self.state_size = state_size - 1 + 4    # теперь включает vol_ratio
         self.action_size = 3           		# [sit, buy, sell]
         self.model_name = model_name
         self.inventory = []
@@ -48,7 +50,7 @@ class Agent:
         # Soften epsilon decay to keep exploration longer
         self.epsilon_decay = 0.995
         # Use a lower learning rate for stability
-        self.learning_rate = 0.0005
+        self.learning_rate = 0.001
         self.loss = huber_loss
         self.custom_objects = {"huber_loss": huber_loss}  # important for loading the model from memory
         # Use gradient clipping to stabilize training
@@ -197,15 +199,22 @@ class Agent:
         self.model.save(filename)
 
     def load(self):
+        import logging
         import os
         from keras.models import load_model
         # Исправлено: model_path теперь всегда корректный
         model_path = self.model_name if os.path.isabs(self.model_name) else os.path.join("models", self.model_name)
         if model_path.endswith(".h5") and os.path.exists(model_path):
-            # Только веса — создаём архитектуру и грузим веса
             model = self._model()
-            model.load_weights(model_path)
+            try:
+                model.load_weights(model_path)
+                logging.info(f"Loaded weights from {model_path}")
+            except Exception as e:
+                logging.warning(f"Could not load weights from {model_path}: {e}. Training from scratch.")
             return model
         else:
-            # Полная модель
-            return load_model(model_path, custom_objects=self.custom_objects)
+            try:
+                return load_model(model_path, custom_objects=self.custom_objects)
+            except Exception as e:
+                logging.warning(f"Could not load model from {model_path}: {e}. Training from scratch.")
+                return self._model()

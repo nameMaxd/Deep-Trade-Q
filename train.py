@@ -95,11 +95,25 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
     # Принудительно создать лог-файл
     with open("train_finetune.log", "a") as f: f.write("=== Training started ===\n")
 
-    # Загружаем агент с весами
-    if model_name is None:
-        model_name = "model_t-dqn_GOOG_10_FEATS_2020-2024-06"
-    state_size = window_size - 1 + 3
-    agent = Agent(state_size, strategy=strategy, pretrained=pretrained, model_name=model_name)
+    # Resolve pretrained model path: normalize to basename
+    import glob
+    if pretrained:
+        # find latest .h5 in models/ if no specific file
+        if not model_name or not model_name.endswith('.h5'):
+            h5_files = glob.glob(os.path.join('models', '*.h5'))
+            if not h5_files:
+                logging.warning('No pretrained .h5 found in models/, training from scratch.')
+                pretrained = False
+                model_name = None
+            else:
+                h5_files.sort(key=os.path.getmtime, reverse=True)
+                model_name = os.path.basename(h5_files[0])
+        else:
+            # keep only filename
+            model_name = os.path.basename(model_name)
+
+    # Initialize agent with dynamic window_size (state_size computed internally)
+    agent = Agent(window_size, strategy=strategy, pretrained=pretrained, model_name=model_name)
 
     best_profit = None
     best_epoch = None

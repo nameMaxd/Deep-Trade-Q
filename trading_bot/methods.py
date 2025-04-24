@@ -25,6 +25,9 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
 
     min_v = np.min(data)
     max_v = np.max(data)
+    # Гарантируем согласованность размерности состояния с агентом
+    state_size = window_size - 1 + 4
+    agent.state_size = state_size
     state = get_state(data, 0, window_size, min_v=min_v, max_v=max_v)
 
     # tqdm будет печатать прогресс только в консоль, не в лог
@@ -40,7 +43,7 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
 
         # BUY
         if action == 1:
-            agent.inventory.append(data[t])
+            agent.inventory.append(float(data[t][0]))
             # штраф за переполнение inventory (если держим слишком долго)
             if len(agent.inventory) > WINDOW_SIZE:
                 reward -= 0.05 * (len(agent.inventory) - WINDOW_SIZE)
@@ -48,13 +51,14 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
         # SELL
         elif action == 2:
             if len(agent.inventory) > 0:
-                bought_price = agent.inventory.pop(0)
-                delta = data[t] - bought_price
+                bought_price = float(agent.inventory.pop(0))
+                curr_price = float(data[t][0])
+                delta = curr_price - bought_price
                 if delta > 0:
-                    reward = delta * 1.0
+                    reward = float(delta) * 1.0
                 else:
-                    reward = -abs(delta) * 1.0
-                total_profit += delta
+                    reward = -abs(float(delta)) * 1.0
+                total_profit += float(delta)
             else:
                 reward = -0.05  # штраф за SELL без inventory
                 print(f'[train_model] t={t} action=SELL без inventory -> штраф')
@@ -62,9 +66,9 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
         # HOLD
         else:
             if len(agent.inventory) > 0:
-                # поощрение за удержание при росте
-                last_buy = agent.inventory[0]
-                reward += 0.01 * (data[t] - last_buy) / (last_buy + 1e-8)
+                last_buy = float(agent.inventory[0])
+                curr_price = float(data[t][0])
+                reward += 0.01 * (curr_price - last_buy) / (last_buy + 1e-8)
                 # штраф за слишком долгие позиции (каждая позиция)
                 reward -= 0.01 * len(agent.inventory)
             else:
@@ -111,8 +115,7 @@ def evaluate_model(agent, data, window_size, debug):
 
         # BUY
         if action == 1:
-            agent.inventory.append(data[t])
-
+            agent.inventory.append(data[t][0])  # store only float price, not tuple
             history.append((data[t], "BUY"))
             if debug:
                 logging.debug("Buy at: {}".format(format_currency(data[t])))
@@ -120,14 +123,14 @@ def evaluate_model(agent, data, window_size, debug):
         # SELL
         elif action == 2 and len(agent.inventory) > 0:
             bought_price = agent.inventory.pop(0)
-            delta = data[t] - bought_price
-            reward = delta #max(delta, 0)
+            delta = float(data[t][0]) - float(bought_price)
+            reward = delta 
             total_profit += delta
 
             history.append((data[t], "SELL"))
             if debug:
                 logging.debug("Sell at: {} | Position: {}".format(
-                    format_currency(data[t]), format_position(data[t] - bought_price)))
+                    format_currency(data[t]), format_position(delta)))
         # HOLD
         else:
             history.append((data[t], "HOLD"))

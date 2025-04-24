@@ -42,23 +42,72 @@ from trading_bot.utils import (
 def main(train_stock, val_stock, window_size, batch_size, ep_count,
          strategy="t-dqn", model_name="model_debug", pretrained=False,
          debug=False):
-    """ Trains the stock trading bot using Deep Q-Learning.
-    Please see https://arxiv.org/abs/1312.5602 for more details.
-
-    Args: [python train.py --help]
+    import numpy as np
+    """ Finetune the stock trading bot on a large interval (2019-01-01 — 2024-06-30).
+    Logs each epoch to train_finetune.log, uses tqdm for progress.
     """
-    agent = Agent(window_size, strategy=strategy, pretrained=pretrained, model_name=model_name)
-    
-    train_data = get_stock_data(train_stock)
-    val_data = get_stock_data(val_stock)
+    import pandas as pd
+    import os
+    import logging
+    from trading_bot.ops import get_state
+    from tqdm import tqdm
 
-    initial_offset = val_data[1] - val_data[0]
+    # Настраиваем логирование в файл
+    logging.basicConfig(filename="train_finetune.log", filemode="w", level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(message)s")
+    print("Лог обучения будет писаться в train_finetune.log")
 
-    for episode in range(1, ep_count + 1):
-        train_result = train_model(agent, episode, train_data, ep_count=ep_count,
-                                   batch_size=batch_size, window_size=window_size)
-        val_result, _ = evaluate_model(agent, val_data, window_size, debug)
-        show_train_result(train_result, val_result, initial_offset)
+    # Загружаем данные 2019-01-01 — 2024-06-30
+    df1 = pd.read_csv('data/GOOG_2019.csv')
+    df2 = pd.read_csv('data/GOOG_2020-2025.csv')
+    df1["Date"] = pd.to_datetime(df1["Date"])
+    df2["Date"] = pd.to_datetime(df2["Date"])
+    df = pd.concat([df1, df2], ignore_index=True)
+    df = df.sort_values("Date").reset_index(drop=True)
+    start = pd.to_datetime("2019-01-01")
+    end = pd.to_datetime("2024-07-01")
+    df = df[(df["Date"] >= start) & (df["Date"] < end)]
+    train_data = list(df["Adj Close"])
+    # Очистка train_data от NaN/inf/mусора
+    train_data = [x for x in train_data if x is not None and not (isinstance(x, float) and (np.isnan(x) or np.isinf(x)))]
+    print(f"Финетюним на {len(train_data)} дней: {df['Date'].min().strftime('%Y-%m-%d')} — {df['Date'].max().strftime('%Y-%m-%d')}")
+    print(f"train_data: min={np.min(train_data):.2f}, max={np.max(train_data):.2f}, mean={np.mean(train_data):.2f}")
+    # Принудительно создать лог-файл
+    with open("train_finetune.log", "a") as f: f.write("=== Training started ===\n")
+
+    # Загружаем агент с весами
+    agent = Agent(window_size, strategy=strategy, pretrained=True, model_name="model_t-dqn_GOOG_10")
+
+    best_profit = None
+    best_epoch = None
+    for epoch in tqdm(range(1, ep_count+1), desc="Finetune Epoch"):
+        result = train_model(agent, epoch, train_data, ep_count=ep_count, batch_size=batch_size, window_size=window_size)
+        # Оценим на трейне (для контроля)
+        agent.epsilon = 0.0
+        state = get_state(train_data, 0, window_size + 1)
+        profit = 0
+        position = []
+        for t in range(len(train_data)):
+            action = agent.act(state, is_eval=True)
+            next_state = get_state(train_data, t+1, window_size + 1) if t+1 < len(train_data) else state
+            if action == 1:
+                position.append(train_data[t])
+            elif action == 2 and len(position) > 0:
+                buy_price = position.pop(0)
+                profit += train_data[t] - buy_price
+            state = next_state
+        print(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]}")
+        logging.info(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]}")
+        with open("train_finetune.log", "a") as f:
+            f.write(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]}\n")
+        if best_profit is None or profit > best_profit:
+            best_profit = profit
+            best_epoch = epoch
+            # Сохраняем лучшие веса
+            agent.model.save_weights("models/model_t-dqn_GOOG_10_finetuned.h5")
+    print(f"Лучший train profit={best_profit:.2f} на эпохе {best_epoch}. Веса сохранены в models/model_t-dqn_GOOG_10_finetuned.h5")
+    with open("train_finetune.log", "a") as f:
+        f.write(f"Лучший train profit={best_profit:.2f} на эпохе {best_epoch}.\n")
 
 
 if __name__ == "__main__":

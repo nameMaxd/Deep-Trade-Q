@@ -1,0 +1,12 @@
+=== Training started ===
+Epoch 1/10: train_profit=-11.76 train_loss=0.7192866654696292
+Epoch 2/10: train_profit=1196.11 train_loss=0.5242986084650392
+Epoch 3/10: train_profit=1413.12 train_loss=0.641688407841476
+Epoch 4/10: train_profit=1823.86 train_loss=0.6161065158528695
+Epoch 5/10: train_profit=1796.17 train_loss=0.5830999343912454
+Epoch 6/10: train_profit=452.78 train_loss=0.5223546691697792
+Epoch 7/10: train_profit=4.59 train_loss=0.5981590812283474
+Epoch 8/10: train_profit=634.16 train_loss=0.54819260675973
+Epoch 9/10: train_profit=5724.62 train_loss=0.5950959758711574
+Epoch 10/10: train_profit=4080.33 train_loss=0.5667452600818343
+Лучший train profit=5724.62 на эпохе 9.

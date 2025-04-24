@@ -23,7 +23,8 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=1
 
     state = get_state(data, 0, window_size + 1)
 
-    for t in tqdm(range(data_length), total=data_length, leave=True, desc='Episode {}/{}'.format(episode, ep_count)):        
+    # tqdm будет печатать прогресс только в консоль, не в лог
+    for t in tqdm(range(data_length), total=data_length, leave=True, desc='Episode {}/{}'.format(episode, ep_count), file=None):
         reward = 0
         next_state = get_state(data, t + 1, window_size + 1)
 
@@ -33,17 +34,22 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=1
         # BUY
         if action == 1:
             agent.inventory.append(data[t])
+            # penalty за избыточные покупки (например, если уже есть позиция)
+            if len(agent.inventory) > 1:
+                reward -= 0.1
 
         # SELL
         elif action == 2 and len(agent.inventory) > 0:
             bought_price = agent.inventory.pop(0)
             delta = data[t] - bought_price
-            reward = delta #max(delta, 0)
+            reward = delta
+            if delta < 0:
+                reward += delta * 0.5  # дополнительный штраф за убыточную сделку
             total_profit += delta
 
         # HOLD
         else:
-            pass
+            reward -= 0.05  # penalty за холд
 
         done = (t == data_length - 1)
         agent.remember(state, action, reward, next_state, done)
@@ -54,8 +60,12 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=1
 
         state = next_state
 
-    if episode % 10 == 0:
-        agent.save(episode)
+    # НЕ сохраняем веса внутри train_model при по-недельном обучении!
+    # if episode % 10 == 0:
+    #     agent.save(episode)
+
+    # Итоги эпохи логируем кратко (номер, профит, средний лосс)
+    logging.info(f"Epoch {episode}/{ep_count}: profit={total_profit:.2f}, avg_loss={np.mean(np.array(avg_loss)) if avg_loss else 'N/A'}")
 
     return (episode, ep_count, total_profit, np.mean(np.array(avg_loss)))
 

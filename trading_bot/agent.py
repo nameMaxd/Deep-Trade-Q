@@ -65,15 +65,19 @@ class Agent:
             self.target_model.set_weights(self.model.get_weights())
 
     def _model(self):
-        """Creates the model
-        """
+        """Creates the model (с Dropout и L2-регуляризацией)"""
+        from keras.layers import Dropout
+        from keras.regularizers import l2
         model = Sequential()
-        model.add(Dense(units=128, activation="relu", input_dim=self.state_size))
-        model.add(Dense(units=256, activation="relu"))
-        model.add(Dense(units=256, activation="relu"))
-        model.add(Dense(units=128, activation="relu"))
+        model.add(Dense(units=128, activation="relu", input_dim=self.state_size, kernel_regularizer=l2(1e-4)))
+        model.add(Dropout(0.2))
+        model.add(Dense(units=256, activation="relu", kernel_regularizer=l2(1e-4)))
+        model.add(Dropout(0.3))
+        model.add(Dense(units=256, activation="relu", kernel_regularizer=l2(1e-4)))
+        model.add(Dropout(0.3))
+        model.add(Dense(units=128, activation="relu", kernel_regularizer=l2(1e-4)))
+        model.add(Dropout(0.2))
         model.add(Dense(units=self.action_size))
-
         model.compile(loss=self.loss, optimizer=self.optimizer)
         return model
 
@@ -178,7 +182,22 @@ class Agent:
         return loss
 
     def save(self, episode):
-        self.model.save("models/{}_{}".format(self.model_name, episode))
+        import os
+        if not os.path.exists('models'):
+            os.makedirs('models')
+        filename = f"models/{self.model_name}_{episode}.h5"
+        self.model.save(filename)
 
     def load(self):
-        return load_model("models/" + self.model_name, custom_objects=self.custom_objects)
+        import os
+        from keras.models import load_model
+        # Исправлено: model_path теперь всегда корректный
+        model_path = self.model_name if os.path.isabs(self.model_name) else os.path.join("models", self.model_name)
+        if model_path.endswith(".h5") and os.path.exists(model_path):
+            # Только веса — создаём архитектуру и грузим веса
+            model = self._model()
+            model.load_weights(model_path)
+            return model
+        else:
+            # Полная модель
+            return load_model(model_path, custom_objects=self.custom_objects)

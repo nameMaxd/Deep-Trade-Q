@@ -30,16 +30,29 @@ def show_train_result(result, val_position, initial_offset):
 def show_eval_result(model_name, profit, initial_offset):
     """ Displays eval results
     """
-    if profit == initial_offset or profit == 0.0:
+    # If profit is a tuple, use the first element
+    if isinstance(profit, tuple):
+        profit_val = profit[0]
+    else:
+        profit_val = profit
+    if profit_val == initial_offset or profit_val == 0.0:
         logging.info('{}: USELESS\n'.format(model_name))
     else:
-        logging.info('{}: {}\n'.format(model_name, format_position(profit)))
+        logging.info('{}: {}\n'.format(model_name, format_position(profit_val)))
 
 
 def get_stock_data(stock_file):
-    """Reads stock data from csv file
-    """
-    df = pd.read_csv(stock_file)
+    """Reads stock data from csv file. If only a ticker is given, looks in data/<ticker>.csv"""
+    import os
+    # If file exists as is, use it
+    if os.path.isfile(stock_file):
+        path = stock_file
+    else:
+        # Try in data/<stock_file>.csv
+        path = os.path.join('data', f'{stock_file}.csv')
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"File '{stock_file}' or '{path}' not found.")
+    df = pd.read_csv(path)
     return list(df['Adj Close'])
 
 

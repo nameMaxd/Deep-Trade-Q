@@ -40,7 +40,7 @@ from trading_bot.utils import (
 
 
 def main(train_stock, val_stock, window_size, batch_size, ep_count,
-         strategy="t-dqn", model_name="model_debug", pretrained=False,
+         strategy="t-dqn", model_name=None, pretrained=False,
          debug=False):
     import numpy as np
     """ Finetune the stock trading bot on a large interval (2019-01-01 — 2024-06-30).
@@ -76,7 +76,10 @@ def main(train_stock, val_stock, window_size, batch_size, ep_count,
     with open("train_finetune.log", "a") as f: f.write("=== Training started ===\n")
 
     # Загружаем агент с весами
-    agent = Agent(window_size, strategy=strategy, pretrained=True, model_name="model_t-dqn_GOOG_10")
+    if model_name is None:
+        model_name = "model_t-dqn_GOOG_10_FEATS_2020-2024-06"
+    state_size = window_size - 1 + 3
+    agent = Agent(state_size, strategy=strategy, pretrained=pretrained, model_name=model_name)
 
     best_profit = None
     best_epoch = None
@@ -84,12 +87,12 @@ def main(train_stock, val_stock, window_size, batch_size, ep_count,
         result = train_model(agent, epoch, train_data, ep_count=ep_count, batch_size=batch_size, window_size=window_size)
         # Оценим на трейне (для контроля)
         agent.epsilon = 0.0
-        state = get_state(train_data, 0, window_size + 1)
+        state = get_state(train_data, 0, window_size)
         profit = 0
         position = []
         for t in range(len(train_data)):
             action = agent.act(state, is_eval=True)
-            next_state = get_state(train_data, t+1, window_size + 1) if t+1 < len(train_data) else state
+            next_state = get_state(train_data, t+1, window_size) if t+1 < len(train_data) else state
             if action == 1:
                 position.append(train_data[t])
             elif action == 2 and len(position) > 0:

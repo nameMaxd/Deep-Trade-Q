@@ -65,17 +65,21 @@ class Agent:
             self.target_model.set_weights(self.model.get_weights())
 
     def _model(self):
-        """Creates the model (с Dropout и L2-регуляризацией)"""
-        from keras.layers import Dropout
+        """Creates the model (с BatchNorm, Dropout и L2-регуляризацией)"""
+        from keras.layers import Dropout, BatchNormalization
         from keras.regularizers import l2
         model = Sequential()
         model.add(Dense(units=128, activation="relu", input_dim=self.state_size, kernel_regularizer=l2(1e-4)))
+        model.add(BatchNormalization())
         model.add(Dropout(0.2))
         model.add(Dense(units=256, activation="relu", kernel_regularizer=l2(1e-4)))
+        model.add(BatchNormalization())
         model.add(Dropout(0.3))
         model.add(Dense(units=256, activation="relu", kernel_regularizer=l2(1e-4)))
+        model.add(BatchNormalization())
         model.add(Dropout(0.3))
         model.add(Dense(units=128, activation="relu", kernel_regularizer=l2(1e-4)))
+        model.add(BatchNormalization())
         model.add(Dropout(0.2))
         model.add(Dense(units=self.action_size))
         model.compile(loss=self.loss, optimizer=self.optimizer)

@@ -21,37 +21,41 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=1
     agent.inventory = []
     avg_loss = []
 
-    state = get_state(data, 0, window_size + 1)
+    state = get_state(data, 0, window_size)
 
     # tqdm будет печатать прогресс только в консоль, не в лог
     for t in tqdm(range(data_length), total=data_length, leave=True, desc='Episode {}/{}'.format(episode, ep_count), file=None):
         reward = 0
-        next_state = get_state(data, t + 1, window_size + 1)
+        next_state = get_state(data, t + 1, window_size)
 
         # select an action
         action = agent.act(state)
+        # Логируем action, reward, inventory (только первые 20 шагов)
+        if t < 20:
+            print(f'[train_model] t={t} action={action} reward={reward:.4f} inventory={agent.inventory}')
 
         # BUY
         if action == 1:
             agent.inventory.append(data[t])
-            # penalty за избыточные покупки (например, если уже есть позиция)
-            if len(agent.inventory) > 1:
-                reward -= 0.1
 
         # SELL
         elif action == 2 and len(agent.inventory) > 0:
             bought_price = agent.inventory.pop(0)
             delta = data[t] - bought_price
-            reward = delta
-            if delta < 0:
-                reward += delta * 0.5  # дополнительный штраф за убыточную сделку
+            if delta > 0:
+                reward = delta * 1.0
+            else:
+                reward = -abs(delta) * 1.0
             total_profit += delta
 
         # HOLD
         else:
-            reward -= 0.05  # penalty за холд
+            reward -= 0.01  # меньший penalty за холд
 
         done = (t == data_length - 1)
+        # Логируем reward (только первые 10 шагов)
+        if t < 10:
+            print(f'[train_model] t={t} reward={reward:.4f}')
         agent.remember(state, action, reward, next_state, done)
 
         if len(agent.memory) > batch_size:
@@ -77,11 +81,11 @@ def evaluate_model(agent, data, window_size, debug):
     history = []
     agent.inventory = []
     
-    state = get_state(data, 0, window_size + 1)
+    state = get_state(data, 0, window_size)
 
     for t in range(data_length):        
         reward = 0
-        next_state = get_state(data, t + 1, window_size + 1)
+        next_state = get_state(data, t + 1, window_size)
         
         # select an action
         action = agent.act(state, is_eval=True)

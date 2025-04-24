@@ -10,3 +10,27 @@ Epoch 8/10: train_profit=634.16 train_loss=0.54819260675973
 Epoch 9/10: train_profit=5724.62 train_loss=0.5950959758711574
 Epoch 10/10: train_profit=4080.33 train_loss=0.5667452600818343
 Лучший train profit=5724.62 на эпохе 9.
+=== Training started ===
+=== Training started ===
+=== Training started ===
+=== Training started ===
+=== Training started ===
+=== Training started ===
+=== Training started ===
+Epoch 1/10: train_profit=0.00 train_loss=18.142979400801728
+Epoch 2/10: train_profit=-279483.66 train_loss=35.22875515671744
+Epoch 3/10: train_profit=-270038.94 train_loss=58.6926484728205
+Epoch 4/10: train_profit=-248662.10 train_loss=55.867857918963914
+Epoch 5/10: train_profit=-279427.97 train_loss=58.83761490851209
+Epoch 6/10: train_profit=0.00 train_loss=78.81858723751013
+=== Training started ===
+Epoch 1/1: train_profit=2.24 train_loss=30.1579205579503
+Лучший train profit=2.24 на эпохе 1.
+=== Training started ===
+Epoch 1/1: train_profit=0.00 train_loss=33.712491105855044
+Лучший train profit=0.00 на эпохе 1.
+=== Training started ===
+Epoch 1/3: train_profit=0.00 train_loss=35.46159745854511
+Epoch 2/3: train_profit=-87.79 train_loss=12.264817490266717
+Epoch 3/3: train_profit=19.08 train_loss=7.068203388780788
+Лучший train profit=19.08 на эпохе 3.

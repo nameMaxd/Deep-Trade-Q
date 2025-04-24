@@ -2,7 +2,7 @@
 Script for training Stock Trading Bot.
 
 Usage:
-  train.py <train-stock> <val-stock> [--strategy=<strategy>]
+  train.py <stock> [<dummy>] [--strategy=<strategy>]
     [--window-size=<window-size>] [--batch-size=<batch-size>]
     [--episode-count=<episode-count>] [--model-name=<model-name>]
     [--pretrained] [--debug]
@@ -25,22 +25,31 @@ Options:
 
 import logging
 import coloredlogs
+import os
+import tensorflow as tf
+import io
+import re
 
 from docopt import docopt
 
 from trading_bot.agent import Agent
 from trading_bot.methods import train_model, evaluate_model
 from trading_bot.utils import (
-    get_stock_data,
     WINDOW_SIZE,
+    minmax_normalize,
     format_currency,
     format_position,
     show_train_result,
     switch_k_backend_device
 )
 
+# Configure multi-core usage
+os.environ['OMP_NUM_THREADS'] = str(os.cpu_count())
+os.environ['MKL_NUM_THREADS'] = str(os.cpu_count())
+tf.config.threading.set_intra_op_parallelism_threads(os.cpu_count())
+tf.config.threading.set_inter_op_parallelism_threads(os.cpu_count())
 
-def main(train_stock, val_stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
+def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
          strategy="t-dqn", model_name=None, pretrained=False,
          debug=False):
     import numpy as np
@@ -59,15 +68,25 @@ def main(train_stock, val_stock, window_size=WINDOW_SIZE, batch_size=32, ep_coun
     print("Лог обучения будет писаться в train_finetune.log")
 
     # Загружаем данные 2019-01-01 — 2024-06-30
-    df = pd.read_csv('data/GOOG.csv')
+    # Clean CSV: keep only header and lines starting with date
+    pattern = re.compile(r'\d{4}-\d{2}-\d{2}')
+    raw_lines = []
+    with open(stock, 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith('Date,'):
+                raw_lines.append(line)
+            else:
+                m = pattern.search(line)
+                if m:
+                    raw_lines.append(line[m.start():])
+    df = pd.read_csv(io.StringIO('\n'.join(raw_lines)))
     df["Date"] = pd.to_datetime(df["Date"])
     df = df.sort_values("Date").reset_index(drop=True)
     train_df = df[(df["Date"] >= "2015-01-01") & (df["Date"] < "2024-01-01")]
-    val_df = df[(df["Date"] >= "2024-01-01") & (df["Date"] < "2025-01-01")]
-    test_df = df[(df["Date"] >= "2025-01-01")]
-    train_data = get_stock_data(train_stock, norm_type="minmax")
-    val_data = get_stock_data(val_stock, norm_type="minmax")
-    print(f"Train: {len(train_df)} days, Val: {len(val_df)} days, Test: {len(test_df)} days")
+    raw_train_prices = train_df["Adj Close"].values
+    train_data = list(minmax_normalize(raw_train_prices))
+    print(f"Train: {len(train_df)} days")
     print(f"train_data: min={np.min(train_data):.2f}, max={np.max(train_data):.2f}, mean={np.mean(train_data):.2f}")
     # Принудительно создать лог-файл
     with open("train_finetune.log", "a") as f: f.write("=== Training started ===\n")
@@ -91,11 +110,14 @@ def main(train_stock, val_stock, window_size=WINDOW_SIZE, batch_size=32, ep_coun
             action = agent.act(state, is_eval=True)
             next_state = get_state(train_data, t+1, window_size) if t+1 < len(train_data) else state
             if action == 1:
-                position.append(train_data[t])
+                position.append(raw_train_prices[t])
             elif action == 2 and len(position) > 0:
                 buy_price = position.pop(0)
-                profit += train_data[t] - buy_price
+                profit += raw_train_prices[t] - buy_price
             state = next_state
+        # liquidate remaining positions at last price
+        for buy_price in position:
+            profit += raw_train_prices[-1] - buy_price
         print(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]}")
         logging.info(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]}")
         with open("train_finetune.log", "a") as f:
@@ -113,8 +135,7 @@ def main(train_stock, val_stock, window_size=WINDOW_SIZE, batch_size=32, ep_coun
 if __name__ == "__main__":
     args = docopt(__doc__)
 
-    train_stock = args["<train-stock>"]
-    val_stock = args["<val-stock>"]
+    stock = args["<stock>"]
     strategy = args["--strategy"]
     window_size = int(args["--window-size"])
     batch_size = int(args["--batch-size"])
@@ -124,11 +145,11 @@ if __name__ == "__main__":
     debug = args["--debug"]
 
     coloredlogs.install(level="DEBUG")
-    switch_k_backend_device()
+    # switch_k_backend_device()  # disabled to enable GPU and CPU threading
 
     try:
-        main(train_stock, val_stock, window_size, batch_size,
-             ep_count, strategy=strategy, model_name=model_name, 
+        main(stock, window_size, batch_size, ep_count,
+             strategy=strategy, model_name=model_name,
              pretrained=pretrained, debug=debug)
     except KeyboardInterrupt:
         print("Aborted!")

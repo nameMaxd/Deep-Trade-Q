@@ -14,19 +14,23 @@ from .ops import (
 )
 
 
-def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=10):
+from .utils import WINDOW_SIZE
+
+def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=WINDOW_SIZE):
     total_profit = 0
     data_length = len(data) - 1
 
     agent.inventory = []
     avg_loss = []
 
-    state = get_state(data, 0, window_size)
+    min_v = np.min(data)
+    max_v = np.max(data)
+    state = get_state(data, 0, window_size, min_v=min_v, max_v=max_v)
 
     # tqdm будет печатать прогресс только в консоль, не в лог
     for t in tqdm(range(data_length), total=data_length, leave=True, desc='Episode {}/{}'.format(episode, ep_count), file=None):
         reward = 0
-        next_state = get_state(data, t + 1, window_size)
+        next_state = get_state(data, t + 1, window_size, min_v=min_v, max_v=max_v)
 
         # select an action
         action = agent.act(state)
@@ -37,20 +41,32 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=1
         # BUY
         if action == 1:
             agent.inventory.append(data[t])
+            # штраф за переполнение inventory (если держим слишком долго)
+            if len(agent.inventory) > WINDOW_SIZE:
+                reward -= 0.05 * (len(agent.inventory) - WINDOW_SIZE)
 
         # SELL
-        elif action == 2 and len(agent.inventory) > 0:
-            bought_price = agent.inventory.pop(0)
-            delta = data[t] - bought_price
-            if delta > 0:
-                reward = delta * 1.0
+        elif action == 2:
+            if len(agent.inventory) > 0:
+                bought_price = agent.inventory.pop(0)
+                delta = data[t] - bought_price
+                if delta > 0:
+                    reward = delta * 1.0
+                else:
+                    reward = -abs(delta) * 1.0
+                total_profit += delta
             else:
-                reward = -abs(delta) * 1.0
-            total_profit += delta
+                reward = -0.05  # штраф за SELL без inventory
+                print(f'[train_model] t={t} action=SELL без inventory -> штраф')
 
         # HOLD
         else:
-            reward -= 0.01  # меньший penalty за холд
+            # поощрение за удержание при росте
+            if len(agent.inventory) > 0:
+                last_buy = agent.inventory[0]
+                reward += 0.01 * (data[t] - last_buy) / (last_buy + 1e-8)
+            # базовый штраф за пассивность
+            reward -= 0.005
 
         done = (t == data_length - 1)
         # Логируем reward (только первые 10 шагов)
@@ -85,7 +101,7 @@ def evaluate_model(agent, data, window_size, debug):
 
     for t in range(data_length):        
         reward = 0
-        next_state = get_state(data, t + 1, window_size)
+        next_state = get_state(data, t + 1, window_size, min_v=min_v, max_v=max_v)
         
         # select an action
         action = agent.act(state, is_eval=True)

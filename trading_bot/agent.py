@@ -10,6 +10,7 @@ from keras.models import Sequential
 from keras.models import load_model, clone_model
 from keras.layers import Dense
 from keras.optimizers import Adam
+from trading_bot.utils import WINDOW_SIZE
 
 
 def huber_loss(y_true, y_pred, clip_delta=1.0):
@@ -32,7 +33,7 @@ class Agent:
         self.strategy = strategy
 
         # agent config
-        self.state_size = state_size    	# normalized previous days
+        self.state_size = WINDOW_SIZE - 1 + 3    # всегда согласовано
         self.action_size = 3           		# [sit, buy, sell]
         self.model_name = model_name
         self.inventory = []
@@ -44,11 +45,11 @@ class Agent:
         self.gamma = 0.95 # affinity for long term reward
         self.epsilon = 1.0
         self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
+        self.epsilon_decay = 0.97
         self.learning_rate = 0.001
         self.loss = huber_loss
         self.custom_objects = {"huber_loss": huber_loss}  # important for loading the model from memory
-        self.optimizer = Adam(lr=self.learning_rate)
+        self.optimizer = Adam(learning_rate=self.learning_rate)
 
         if pretrained and self.model_name is not None:
             self.model = self.load()

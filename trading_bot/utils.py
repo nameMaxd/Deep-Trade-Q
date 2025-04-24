@@ -41,19 +41,57 @@ def show_eval_result(model_name, profit, initial_offset):
         logging.info('{}: {}\n'.format(model_name, format_position(profit_val)))
 
 
-def get_stock_data(stock_file):
-    """Reads stock data from csv file. If only a ticker is given, looks in data/<ticker>.csv"""
+WINDOW_SIZE = 10
+
+def minmax_normalize(arr):
+    arr = np.array(arr)
+    min_v = np.nanmin(arr)
+    max_v = np.nanmax(arr)
+    if max_v - min_v == 0:
+        return np.zeros_like(arr)
+    return (arr - min_v) / (max_v - min_v)
+
+def zscore_normalize(arr):
+    arr = np.array(arr)
+    mean = np.nanmean(arr)
+    std = np.nanstd(arr)
+    if std == 0:
+        return np.zeros_like(arr)
+    return (arr - mean) / std
+
+def log_returns(arr):
+    arr = np.array(arr)
+    arr = np.where(arr <= 0, np.nan, arr)
+    log_ret = np.diff(np.log(arr))
+    log_ret = np.insert(log_ret, 0, 0)
+    return log_ret
+
+def fillna_inf(arr):
+    arr = np.array(arr)
+    mask = np.isnan(arr) | np.isinf(arr)
+    if np.any(mask):
+        arr[mask] = np.nanmean(arr[~mask]) if np.any(~mask) else 0
+    return arr
+
+def get_stock_data(stock_file, norm_type="minmax"):
+    """Reads stock data from csv file. norm_type: minmax, zscore, log-returns. Заполняет NaN/inf скользящим средним."""
     import os
-    # If file exists as is, use it
     if os.path.isfile(stock_file):
         path = stock_file
     else:
-        # Try in data/<stock_file>.csv
         path = os.path.join('data', f'{stock_file}.csv')
         if not os.path.isfile(path):
             raise FileNotFoundError(f"File '{stock_file}' or '{path}' not found.")
     df = pd.read_csv(path)
-    return list(df['Adj Close'])
+    prices = np.array(df['Adj Close'])
+    prices = fillna_inf(prices)
+    if norm_type == "zscore":
+        prices = zscore_normalize(prices)
+    elif norm_type == "log-returns":
+        prices = log_returns(prices)
+    else:
+        prices = minmax_normalize(prices)
+    return list(prices)
 
 
 def switch_k_backend_device():

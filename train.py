@@ -32,6 +32,7 @@ from trading_bot.agent import Agent
 from trading_bot.methods import train_model, evaluate_model
 from trading_bot.utils import (
     get_stock_data,
+    WINDOW_SIZE,
     format_currency,
     format_position,
     show_train_result,
@@ -39,7 +40,7 @@ from trading_bot.utils import (
 )
 
 
-def main(train_stock, val_stock, window_size, batch_size, ep_count,
+def main(train_stock, val_stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
          strategy="t-dqn", model_name=None, pretrained=False,
          debug=False):
     import numpy as np
@@ -58,19 +59,15 @@ def main(train_stock, val_stock, window_size, batch_size, ep_count,
     print("Лог обучения будет писаться в train_finetune.log")
 
     # Загружаем данные 2019-01-01 — 2024-06-30
-    df1 = pd.read_csv('data/GOOG_2019.csv')
-    df2 = pd.read_csv('data/GOOG_2020-2025.csv')
-    df1["Date"] = pd.to_datetime(df1["Date"])
-    df2["Date"] = pd.to_datetime(df2["Date"])
-    df = pd.concat([df1, df2], ignore_index=True)
+    df = pd.read_csv('data/GOOG.csv')
+    df["Date"] = pd.to_datetime(df["Date"])
     df = df.sort_values("Date").reset_index(drop=True)
-    start = pd.to_datetime("2019-01-01")
-    end = pd.to_datetime("2024-07-01")
-    df = df[(df["Date"] >= start) & (df["Date"] < end)]
-    train_data = list(df["Adj Close"])
-    # Очистка train_data от NaN/inf/mусора
-    train_data = [x for x in train_data if x is not None and not (isinstance(x, float) and (np.isnan(x) or np.isinf(x)))]
-    print(f"Финетюним на {len(train_data)} дней: {df['Date'].min().strftime('%Y-%m-%d')} — {df['Date'].max().strftime('%Y-%m-%d')}")
+    train_df = df[(df["Date"] >= "2015-01-01") & (df["Date"] < "2024-01-01")]
+    val_df = df[(df["Date"] >= "2024-01-01") & (df["Date"] < "2025-01-01")]
+    test_df = df[(df["Date"] >= "2025-01-01")]
+    train_data = get_stock_data(train_stock, norm_type="minmax")
+    val_data = get_stock_data(val_stock, norm_type="minmax")
+    print(f"Train: {len(train_df)} days, Val: {len(val_df)} days, Test: {len(test_df)} days")
     print(f"train_data: min={np.min(train_data):.2f}, max={np.max(train_data):.2f}, mean={np.mean(train_data):.2f}")
     # Принудительно создать лог-файл
     with open("train_finetune.log", "a") as f: f.write("=== Training started ===\n")

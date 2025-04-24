@@ -13,7 +13,7 @@ Options:
                                       `t-dqn` i.e. DQN with fixed target distribution,
                                       `double-dqn` i.e. DQN with separate network for value estimation. [default: t-dqn]
   --window-size=<window-size>       Size of the n-day window stock data representation
-                                    used as the feature vector. [default: 10]
+                                    used as the feature vector. [default: 20]
   --batch-size=<batch-size>         Number of samples to train on in one mini-batch
                                     during training. [default: 32]
   --episode-count=<episode-count>   Number of trading episodes to use for training. [default: 50]
@@ -85,7 +85,11 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
     df = df.sort_values("Date").reset_index(drop=True)
     train_df = df[(df["Date"] >= "2015-01-01") & (df["Date"] < "2024-01-01")]
     raw_train_prices = train_df["Adj Close"].values
-    train_data = list(minmax_normalize(raw_train_prices))
+    raw_train_volumes = train_df["Volume"].values
+    # normalize price and volume and combine
+    price_norm = list(minmax_normalize(raw_train_prices))
+    vol_norm = list(minmax_normalize(raw_train_volumes))
+    train_data = list(zip(price_norm, vol_norm))
     print(f"Train: {len(train_df)} days")
     print(f"train_data: min={np.min(train_data):.2f}, max={np.max(train_data):.2f}, mean={np.mean(train_data):.2f}")
     # Принудительно создать лог-файл
@@ -105,23 +109,27 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         agent.epsilon = 0.0
         state = get_state(train_data, 0, window_size)
         profit = 0
+        buy_count = 0
+        sell_count = 0
         position = []
         for t in range(len(train_data)):
             action = agent.act(state, is_eval=True)
             next_state = get_state(train_data, t+1, window_size) if t+1 < len(train_data) else state
             if action == 1:
+                buy_count += 1
                 position.append(raw_train_prices[t])
             elif action == 2 and len(position) > 0:
+                sell_count += 1
                 buy_price = position.pop(0)
                 profit += raw_train_prices[t] - buy_price
             state = next_state
         # liquidate remaining positions at last price
         for buy_price in position:
             profit += raw_train_prices[-1] - buy_price
-        print(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]}")
-        logging.info(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]}")
+        print(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={buy_count+sell_count}")
+        logging.info(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={buy_count+sell_count}")
         with open("train_finetune.log", "a") as f:
-            f.write(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]}\n")
+            f.write(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={buy_count+sell_count}\n")
         if best_profit is None or profit > best_profit:
             best_profit = profit
             best_epoch = epoch

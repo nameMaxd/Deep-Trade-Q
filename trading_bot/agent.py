@@ -29,11 +29,11 @@ def huber_loss(y_true, y_pred, clip_delta=1.0):
 class Agent:
     """ Stock Trading Bot """
 
-    def __init__(self, state_size, strategy="t-dqn", reset_every=1000, pretrained=False, model_name=None):
+    def __init__(self, state_size, strategy="t-dqn", reset_every=5000, pretrained=False, model_name=None):
         self.strategy = strategy
 
         # agent config
-        self.state_size = WINDOW_SIZE - 1 + 3    # всегда согласовано
+        self.state_size = WINDOW_SIZE - 1 + 4    # теперь включает vol_ratio
         self.action_size = 3           		# [sit, buy, sell]
         self.model_name = model_name
         self.inventory = []
@@ -45,11 +45,14 @@ class Agent:
         self.gamma = 0.95 # affinity for long term reward
         self.epsilon = 1.0
         self.epsilon_min = 0.01
-        self.epsilon_decay = 0.97
-        self.learning_rate = 0.001
+        # Soften epsilon decay to keep exploration longer
+        self.epsilon_decay = 0.995
+        # Use a lower learning rate for stability
+        self.learning_rate = 0.0005
         self.loss = huber_loss
         self.custom_objects = {"huber_loss": huber_loss}  # important for loading the model from memory
-        self.optimizer = Adam(learning_rate=self.learning_rate)
+        # Use gradient clipping to stabilize training
+        self.optimizer = Adam(learning_rate=self.learning_rate, clipnorm=1.0)
 
         if pretrained and self.model_name is not None:
             self.model = self.load()

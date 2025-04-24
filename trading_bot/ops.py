@@ -17,16 +17,21 @@ def sigmoid(x):
 
 
 def get_state(data, t, window_size, min_v=None, max_v=None):
-    """Возвращает state размерности (window_size+2,) = (window_size-1 сигмоид + SMA+EMA+RSI), все признаки в [0,1]"""
+    """Возвращает state размерности (window_size+3,) = (window_size-1 сигмоид + SMA+EMA+RSI + vol_ratio), все признаки в [0,1]"""
     d = t - window_size + 1
-    block = data[d: t + 1] if d >= 0 else -d * [data[0]] + data[0: t + 1]
-    res = [sigmoid(block[i + 1] - block[i]) for i in range(window_size - 1)]
+    block = data[d: t + 1] if d >= 0 else (-d) * [data[0]] + data[0: t + 1]
+    # separate price and volume
+    prices = [p for p, v in block]
+    volumes = [v for p, v in block]
+    # price change sigmoids
+    res = [sigmoid(prices[i + 1] - prices[i]) for i in range(window_size - 1)]
     import numpy as np
     import pandas as pd
-    block_arr = np.array(block)
-    sma = np.mean(block_arr)
-    ema = pd.Series(block_arr).ewm(span=window_size).mean().iloc[-1]
-    delta = np.diff(block_arr)
+    price_arr = np.array(prices)
+    vol_arr = np.array(volumes)
+    sma = np.mean(price_arr)
+    ema = pd.Series(price_arr).ewm(span=window_size).mean().iloc[-1]
+    delta = np.diff(price_arr)
     up = delta.clip(min=0)
     down = -delta.clip(max=0)
     roll_up = pd.Series(up).rolling(window_size-1).mean().iloc[-1] if len(up) >= window_size-1 else 0
@@ -35,16 +40,18 @@ def get_state(data, t, window_size, min_v=None, max_v=None):
     rsi = 100 - 100 / (1 + rs) if roll_down != 0 else 100
     # нормализация SMA, EMA по min/max
     if min_v is None or max_v is None:
-        min_v = np.min(data)
-        max_v = np.max(data)
+        min_v = np.min([p for p, v in data])
+        max_v = np.max([p for p, v in data])
     sma_n = (sma - min_v) / (max_v - min_v) if max_v > min_v else 0
     ema_n = (ema - min_v) / (max_v - min_v) if max_v > min_v else 0
     rsi_n = rsi / 100.0
-    res += [sma_n, ema_n, rsi_n]
+    # add volume ratio feature
+    vol_ratio = vol_arr[-1] / (np.mean(vol_arr) + 1e-8)
+    res += [sma_n, ema_n, rsi_n, vol_ratio]
     # Логируем признаки только для первых 5 вызовов за запуск
     if not hasattr(get_state, '_log_count'):
         get_state._log_count = 0
     if get_state._log_count < 5:
-        print(f'[get_state] t={t} block={block} sigmoids={res[:-3]} sma_n={sma_n:.4f} ema_n={ema_n:.4f} rsi_n={rsi_n:.4f}')
+        print(f'[get_state] t={t} block={block} sigmoids={res[:-4]} sma_n={sma_n:.4f} ema_n={ema_n:.4f} rsi_n={rsi_n:.4f} vol_ratio={vol_ratio:.4f}')
         get_state._log_count += 1
     return np.array([res])

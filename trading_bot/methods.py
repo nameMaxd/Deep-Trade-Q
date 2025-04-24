@@ -61,12 +61,15 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
 
         # HOLD
         else:
-            # поощрение за удержание при росте
             if len(agent.inventory) > 0:
+                # поощрение за удержание при росте
                 last_buy = agent.inventory[0]
                 reward += 0.01 * (data[t] - last_buy) / (last_buy + 1e-8)
-            # базовый штраф за пассивность
-            reward -= 0.005
+                # штраф за слишком долгие позиции (каждая позиция)
+                reward -= 0.01 * len(agent.inventory)
+            else:
+                # штраф за бездействие без позиции
+                reward -= 0.02
 
         done = (t == data_length - 1)
         # Логируем reward (только первые 10 шагов)

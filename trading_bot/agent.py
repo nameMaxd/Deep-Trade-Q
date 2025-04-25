@@ -40,7 +40,7 @@ class Agent:
         self.model_name = model_name
         self.inventory = []
         self.memory = deque(maxlen=10000)
-        self.buy_threshold = buy_threshold
+        self.buy_threshold = 0.0  # Lower threshold for actions
 
         # model config
         self.model_name = model_name
@@ -48,13 +48,14 @@ class Agent:
         self.epsilon = 1.0
         self.epsilon_min = 0.01
         # Soften epsilon decay to keep exploration longer
-        self.epsilon_decay = 0.995
+        self.epsilon_decay = 0.999  # Slower epsilon decay
         # Use a lower learning rate for stability
         self.learning_rate = 0.001
         self.loss = huber_loss
         self.custom_objects = {"huber_loss": huber_loss}  # important for loading the model from memory
         # Use gradient clipping to stabilize training
         self.optimizer = Adam(learning_rate=self.learning_rate, clipnorm=1.0)
+        self.tau = 2.0  # Higher temperature for exploration
 
         if pretrained and self.model_name is not None:
             self.model = self.load()
@@ -120,16 +121,17 @@ class Agent:
         self.memory.append((state, action, reward, next_state, done))
 
     def act(self, state, is_eval=False):
-        """Take action from given possible set of actions
-        """
-        # ε-greedy exploration
-        if not is_eval and random.random() <= self.epsilon:
-            return random.randrange(self.action_size)
-        # exploitation with threshold: buy/sell if Q advantage over HOLD > threshold
+        """Take action (Boltzmann sampling in training, threshold-greedy in eval)"""
         q_values = self.model.predict(state, verbose=0)[0]
+        # Boltzmann sampling during training
+        if not is_eval:
+            logits = q_values / self.tau
+            exp_q = np.exp(logits - np.max(logits))
+            probs = exp_q / np.sum(exp_q)
+            return np.random.choice(self.action_size, p=probs)
+        # Greedy threshold decision during evaluation
         if q_values[1] - q_values[0] > self.buy_threshold:
             return 1
-        # SELL only if inventory available
         if q_values[2] - q_values[0] > self.buy_threshold and self.inventory:
             return 2
         return 0

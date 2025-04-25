@@ -42,9 +42,11 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
         # BUY
         if action == 1:
             agent.inventory.append(float(data[t][0]))
-            # штраф за переполнение inventory (если держим слишком долго)
+            # Штраф за превышение окна удержания
             if len(agent.inventory) > WINDOW_SIZE:
-                reward -= 0.05 * (len(agent.inventory) - WINDOW_SIZE)
+                reward -= 0.1 * (len(agent.inventory) - WINDOW_SIZE)
+            else:
+                reward += 0.5  # Бонус за открытие позиции
 
         # SELL
         elif action == 2:
@@ -52,26 +54,20 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
                 bought_price = float(agent.inventory.pop(0))
                 curr_price = float(data[t][0])
                 delta = curr_price - bought_price
-                if delta > 0:
-                    reward = float(delta) * 10.0
-                else:
-                    reward = -abs(float(delta)) * 0.5
-                total_profit += float(delta)
+                reward = delta * 100.0  # Увеличиваем масштаб награды
+                total_profit += delta
             else:
-                reward = -0.02
-                print(f'[train_model] t={t} action=SELL без inventory -> штраф')
+                reward = -1.0  # Жесткий штраф за попытку продажи без позиции
 
         # HOLD
         else:
+            reward = -0.5  # Большой штраф за бездействие
             if len(agent.inventory) > 0:
                 last_buy = float(agent.inventory[0])
                 curr_price = float(data[t][0])
                 reward += 0.01 * (curr_price - last_buy) / (last_buy + 1e-8)
                 # штраф за слишком долгие позиции (каждая позиция)
                 reward -= 0.005 * len(agent.inventory)
-            else:
-                # штраф за бездействие без позиции
-                reward -= 0.01
 
         done = (t == data_length - 1)
         # Логируем reward (только первые 10 шагов)

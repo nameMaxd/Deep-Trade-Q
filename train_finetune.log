@@ -1,64 +1,16 @@
-2025-04-25 11:53:29,832 INFO Epoch 1/500: profit=14.85, avg_loss=0.6479542510850089
-2025-04-25 11:53:31,767 INFO Epoch 1/500: train_profit=452.54 train_loss=0.6479542510850089 trades=67 sharpe=0.53
-2025-04-25 11:53:31,889 INFO Epoch 1/500: val_profit=0.01
-2025-04-25 11:56:48,040 INFO Epoch 2/500: profit=3.82, avg_loss=0.6477995372953869
-2025-04-25 11:56:49,870 INFO Epoch 2/500: train_profit=70943.05 train_loss=0.6477995372953869 trades=1303 sharpe=1.58
-2025-04-25 11:56:49,988 INFO Epoch 2/500: val_profit=0.00
-2025-04-25 12:00:06,115 INFO Epoch 3/500: profit=409.20, avg_loss=3.603770097096761
-2025-04-25 12:00:07,956 INFO Epoch 3/500: train_profit=-14.80 train_loss=3.603770097096761 trades=42 sharpe=-0.31
-2025-04-25 12:00:08,087 INFO Epoch 3/500: val_profit=-0.06
-2025-04-25 12:03:24,456 INFO Epoch 4/500: profit=0.03, avg_loss=0.36346307396888733
-2025-04-25 12:03:26,286 INFO Epoch 4/500: train_profit=0.00 train_loss=0.36346307396888733 trades=0 sharpe=0.00
-2025-04-25 12:03:26,409 INFO Epoch 4/500: val_profit=0.00
-2025-04-25 12:06:41,954 INFO Epoch 5/500: profit=0.00, avg_loss=0.2660907506942749
-2025-04-25 12:06:43,770 INFO Epoch 5/500: train_profit=0.00 train_loss=0.2660907506942749 trades=0 sharpe=0.00
-2025-04-25 12:06:43,886 INFO Epoch 5/500: val_profit=0.00
-2025-04-25 12:09:59,702 INFO Epoch 6/500: profit=0.00, avg_loss=0.2345565621341978
-2025-04-25 12:10:01,542 INFO Epoch 6/500: train_profit=0.00 train_loss=0.2345565621341978 trades=0 sharpe=0.00
-2025-04-25 12:10:01,659 INFO Epoch 6/500: val_profit=0.00
-2025-04-25 12:13:18,500 INFO Epoch 7/500: profit=0.00, avg_loss=0.1960593263308207
-2025-04-25 12:13:20,329 INFO Epoch 7/500: train_profit=0.00 train_loss=0.1960593263308207 trades=0 sharpe=0.00
-2025-04-25 12:13:20,446 INFO Epoch 7/500: val_profit=0.00
-2025-04-25 12:16:37,893 INFO Epoch 8/500: profit=0.00, avg_loss=0.1857051601012548
-2025-04-25 12:16:39,720 INFO Epoch 8/500: train_profit=0.00 train_loss=0.1857051601012548 trades=0 sharpe=0.00
-2025-04-25 12:16:39,838 INFO Epoch 8/500: val_profit=0.00
-2025-04-25 12:19:56,745 INFO Epoch 9/500: profit=-0.00, avg_loss=0.18290323302859351
-2025-04-25 12:19:58,584 INFO Epoch 9/500: train_profit=0.00 train_loss=0.18290323302859351 trades=0 sharpe=0.00
-2025-04-25 12:19:58,700 INFO Epoch 9/500: val_profit=0.00
-2025-04-25 12:23:15,695 INFO Epoch 10/500: profit=0.00, avg_loss=0.16611954427900769
-2025-04-25 12:23:17,521 INFO Epoch 10/500: train_profit=0.00 train_loss=0.16611954427900769 trades=0 sharpe=0.00
-2025-04-25 12:23:17,639 INFO Epoch 10/500: val_profit=0.00
-2025-04-25 12:26:33,602 INFO Epoch 11/500: profit=0.00, avg_loss=0.15737378668217433
-2025-04-25 12:26:35,407 INFO Epoch 11/500: train_profit=0.00 train_loss=0.15737378668217433 trades=0 sharpe=0.00
-2025-04-25 12:26:35,522 INFO Epoch 11/500: val_profit=0.00
-2025-04-25 12:29:51,597 INFO Epoch 12/500: profit=0.00, avg_loss=0.14651839967284883
-2025-04-25 12:29:53,419 INFO Epoch 12/500: train_profit=0.00 train_loss=0.14651839967284883 trades=0 sharpe=0.00
-2025-04-25 12:29:53,538 INFO Epoch 12/500: val_profit=0.00
-2025-04-25 12:33:09,453 INFO Epoch 13/500: profit=0.00, avg_loss=0.14128931611776352
-2025-04-25 12:33:11,294 INFO Epoch 13/500: train_profit=0.00 train_loss=0.14128931611776352 trades=0 sharpe=0.00
-2025-04-25 12:33:11,410 INFO Epoch 13/500: val_profit=0.00
-2025-04-25 12:36:27,798 INFO Epoch 14/500: profit=0.00, avg_loss=0.14046468975998105
-2025-04-25 12:36:29,634 INFO Epoch 14/500: train_profit=-3.92 train_loss=0.14046468975998105 trades=4 sharpe=-18.28
-2025-04-25 12:36:29,754 INFO Epoch 14/500: val_profit=0.06
-2025-04-25 12:39:45,918 INFO Epoch 15/500: profit=-0.02, avg_loss=0.12669176040660768
-2025-04-25 12:39:47,744 INFO Epoch 15/500: train_profit=0.00 train_loss=0.12669176040660768 trades=0 sharpe=0.00
-2025-04-25 12:39:47,859 INFO Epoch 15/500: val_profit=0.00
-2025-04-25 12:43:04,071 INFO Epoch 16/500: profit=0.00, avg_loss=0.1248442605137825
-2025-04-25 12:43:05,911 INFO Epoch 16/500: train_profit=0.00 train_loss=0.1248442605137825 trades=0 sharpe=0.00
-2025-04-25 12:43:06,027 INFO Epoch 16/500: val_profit=0.00
-2025-04-25 12:46:21,899 INFO Epoch 17/500: profit=0.00, avg_loss=0.13061293285517467
-2025-04-25 12:46:23,723 INFO Epoch 17/500: train_profit=0.00 train_loss=0.13061293285517467 trades=0 sharpe=0.00
-2025-04-25 12:46:23,839 INFO Epoch 17/500: val_profit=0.00
-2025-04-25 12:49:40,162 INFO Epoch 18/500: profit=0.00, avg_loss=0.11990678026562646
-2025-04-25 12:49:41,991 INFO Epoch 18/500: train_profit=0.00 train_loss=0.11990678026562646 trades=0 sharpe=0.00
-2025-04-25 12:49:42,107 INFO Epoch 18/500: val_profit=0.00
-2025-04-25 12:52:57,987 INFO Epoch 19/500: profit=0.00, avg_loss=0.12328650873331796
-2025-04-25 12:52:59,809 INFO Epoch 19/500: train_profit=0.00 train_loss=0.12328650873331796 trades=0 sharpe=0.00
-2025-04-25 12:52:59,927 INFO Epoch 19/500: val_profit=0.00
-2025-04-25 12:56:16,017 INFO Epoch 20/500: profit=-0.02, avg_loss=0.11475785786197298
-2025-04-25 12:56:17,847 INFO Epoch 20/500: train_profit=-17.03 train_loss=0.11475785786197298 trades=44 sharpe=-0.30
-2025-04-25 12:56:17,964 INFO Epoch 20/500: val_profit=-0.03
-2025-04-25 12:59:33,995 INFO Epoch 21/500: profit=-0.04, avg_loss=0.11172418225379217
-2025-04-25 12:59:35,817 INFO Epoch 21/500: train_profit=0.00 train_loss=0.11172418225379217 trades=0 sharpe=0.00
-2025-04-25 12:59:35,934 INFO Epoch 21/500: val_profit=0.00
-17 trades=0 sharpe=0.00
+2025-04-25 16:31:03,026 INFO [Eval] train ep 0: profit 0.000000, buys 0, sells 0, holds 2165
+2025-04-25 16:31:05,319 INFO [Eval] train ep 1: profit 0.000000, buys 0, sells 0, holds 2165
+2025-04-25 16:31:07,639 INFO [Eval] train ep 2: profit 0.000000, buys 0, sells 0, holds 2165
+2025-04-25 16:31:07,750 INFO [Eval] val   ep 0: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-25 16:31:07,865 INFO [Eval] val   ep 1: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-25 16:31:07,973 INFO [Eval] val   ep 2: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-25 16:31:07,973 INFO [Eval] train ep 0:profit 0.000000
+2025-04-25 16:31:07,973 INFO [Eval] train ep 1:profit 0.000000
+2025-04-25 16:31:07,973 INFO [Eval] train ep 2:profit 0.000000
+2025-04-25 16:31:07,973 INFO [Eval] val   ep 0:profit 0.000000
+2025-04-25 16:31:07,973 INFO [Eval] val   ep 1:profit 0.000000
+2025-04-25 16:31:07,973 INFO [Eval] val   ep 2:profit 0.000000
+2025-04-25 16:31:07,974 INFO [Eval] Step 10000: TrainProfit 0.000000, ValProfit 0.000000, Sharpe 0.000000, AvgReward 0.000000, TradesTrain 0.0, TradesVal 0.0
+2025-04-25 16:31:11,086 INFO === Final Training Inference TD3 ===
+2025-04-25 16:31:13,413 INFO Training Total Profit: 0.0000, Trades: 2165
+2025-04-25 16:31:13,413 INFO === Final Validation Inference TD3 ===

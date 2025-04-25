@@ -52,6 +52,19 @@ Once you're done training, run the evaluation script and let the agent make trad
 python3 eval.py data/GOOG_2019.csv --model-name model_GOOG_50 --debug
 ```
 
+### TD3 Support
+You can now train with TD3 via the same CLI:
+```bash
+python3 train.py data/GOOG_2010-2024-06.csv --strategy td3 \
+  --window-size 50 --td3-timesteps 200000 --td3-noise-sigma 0.2 \
+  --td3-save-name my_td3_GOOG
+```
+The model will be saved as `<td3-save-name>_<stock>.zip`.  
+Note: TD3 requires `stable_baselines3` and `gymnasium`. Install them with:
+```bash
+pip3 install stable_baselines3 gymnasium
+```
+
 Now you are all set up!
 
 ## Acknowledgements

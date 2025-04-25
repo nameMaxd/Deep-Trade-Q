@@ -42,32 +42,28 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
         # BUY
         if action == 1:
             agent.inventory.append(float(data[t][0]))
-            # Штраф за превышение окна удержания
-            if len(agent.inventory) > WINDOW_SIZE:
-                reward -= 0.1 * (len(agent.inventory) - WINDOW_SIZE)
+            reward = 2.0
+            if len(agent.inventory) <= WINDOW_SIZE:
+                reward += 1.0 * (WINDOW_SIZE - len(agent.inventory))
             else:
-                reward += 0.5  # Бонус за открытие позиции
+                reward -= 5.0
 
         # SELL
         elif action == 2:
             if len(agent.inventory) > 0:
-                bought_price = float(agent.inventory.pop(0))
-                curr_price = float(data[t][0])
-                delta = curr_price - bought_price
-                reward = delta * 100.0  # Увеличиваем масштаб награды
-                total_profit += delta
+                bought_price = agent.inventory.pop(0)
+                delta = float(data[t][0]) - bought_price
+                reward = delta * 200.0 + 10.0
+                if delta < 0:
+                    reward -= 50.0
             else:
-                reward = -1.0  # Жесткий штраф за попытку продажи без позиции
+                reward = -20.0
 
         # HOLD
         else:
-            reward = -0.5  # Большой штраф за бездействие
-            if len(agent.inventory) > 0:
-                last_buy = float(agent.inventory[0])
-                curr_price = float(data[t][0])
-                reward += 0.01 * (curr_price - last_buy) / (last_buy + 1e-8)
-                # штраф за слишком долгие позиции (каждая позиция)
-                reward -= 0.005 * len(agent.inventory)
+            reward = -1.0 * (t / len(data)) * (len(agent.inventory) + 1)
+            if agent.inventory:
+                reward -= 0.1 * len(agent.inventory)
 
         done = (t == data_length - 1)
         # Логируем reward (только первые 10 шагов)

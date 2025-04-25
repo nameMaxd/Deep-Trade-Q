@@ -1,16 +1,13 @@
-2025-04-25 16:31:03,026 INFO [Eval] train ep 0: profit 0.000000, buys 0, sells 0, holds 2165
-2025-04-25 16:31:05,319 INFO [Eval] train ep 1: profit 0.000000, buys 0, sells 0, holds 2165
-2025-04-25 16:31:07,639 INFO [Eval] train ep 2: profit 0.000000, buys 0, sells 0, holds 2165
-2025-04-25 16:31:07,750 INFO [Eval] val   ep 0: profit 0.000000, buys 0, sells 0, holds 123
-2025-04-25 16:31:07,865 INFO [Eval] val   ep 1: profit 0.000000, buys 0, sells 0, holds 123
-2025-04-25 16:31:07,973 INFO [Eval] val   ep 2: profit 0.000000, buys 0, sells 0, holds 123
-2025-04-25 16:31:07,973 INFO [Eval] train ep 0:profit 0.000000
-2025-04-25 16:31:07,973 INFO [Eval] train ep 1:profit 0.000000
-2025-04-25 16:31:07,973 INFO [Eval] train ep 2:profit 0.000000
-2025-04-25 16:31:07,973 INFO [Eval] val   ep 0:profit 0.000000
-2025-04-25 16:31:07,973 INFO [Eval] val   ep 1:profit 0.000000
-2025-04-25 16:31:07,973 INFO [Eval] val   ep 2:profit 0.000000
-2025-04-25 16:31:07,974 INFO [Eval] Step 10000: TrainProfit 0.000000, ValProfit 0.000000, Sharpe 0.000000, AvgReward 0.000000, TradesTrain 0.0, TradesVal 0.0
-2025-04-25 16:31:11,086 INFO === Final Training Inference TD3 ===
-2025-04-25 16:31:13,413 INFO Training Total Profit: 0.0000, Trades: 2165
-2025-04-25 16:31:13,413 INFO === Final Validation Inference TD3 ===
+2025-04-25 16:56:11,594 INFO [Eval] train ep 0: profit -0.500000, buys 0, sells 0, holds 0
+2025-04-25 16:56:13,873 INFO [Eval] train ep 1: profit -0.500000, buys 0, sells 0, holds 0
+2025-04-25 16:56:16,165 INFO [Eval] train ep 2: profit -0.500000, buys 0, sells 0, holds 0
+2025-04-25 16:56:16,270 INFO [Eval] val   ep 0: profit 0.000000, buys 0, sells 0, holds 0
+2025-04-25 16:56:16,383 INFO [Eval] val   ep 1: profit 0.000000, buys 0, sells 0, holds 0
+2025-04-25 16:56:16,486 INFO [Eval] val   ep 2: profit 0.000000, buys 0, sells 0, holds 0
+2025-04-25 16:56:16,486 INFO [Eval] train ep 0:profit -0.500000
+2025-04-25 16:56:16,486 INFO [Eval] train ep 1:profit -0.500000
+2025-04-25 16:56:16,486 INFO [Eval] train ep 2:profit -0.500000
+2025-04-25 16:56:16,486 INFO [Eval] val   ep 0:profit 0.000000
+2025-04-25 16:56:16,487 INFO [Eval] val   ep 1:profit 0.000000
+2025-04-25 16:56:16,487 INFO [Eval] val   ep 2:profit 0.000000
+2025-04-25 16:56:16,487 INFO [Eval] Step 5000: TrainProfit -0.500000, ValProfit 0.000000, Sharpe 0.000000, AvgReward 0.365203, TradesTrain 0.0, TradesVal 0.0

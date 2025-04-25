@@ -170,7 +170,9 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                                     # unsuccessful sell -> hold
                                     hold_t += 1
                             obs, rew, done, _, _ = self.train_env.step(act)
-                            p_t += rew; r_t += rew; steps += 1
+                            if act == 2:
+                                p_t += rew
+                            r_t += rew; steps += 1
                         # liquidate remaining positions at end of episode
                         if getattr(self.train_env, 'inventory', None):
                             final_price = self.train_env.prices[self.train_env.current_step]
@@ -186,7 +188,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                         obs, _ = self.eval_env.reset(); done=False; p_v=0.0; r_v=0.0; trade_v=0; steps=0
                         buy_v = sell_v = hold_v = 0
                         while not done:
-                            act, _ = self.model.predict(obs, deterministic=False)
+                            act, _ = self.model.predict(obs, deterministic=True)
                             if act == 0:
                                 hold_v += 1
                             elif act == 1:
@@ -198,7 +200,9 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                                 else:
                                     hold_v += 1
                             obs, rew, done, _, _ = self.eval_env.step(act)
-                            p_v += rew; r_v += rew; steps += 1
+                            if act == 2:
+                                p_v += rew
+                            r_v += rew; steps += 1
                         # liquidate remaining positions at end of episode
                         if getattr(self.eval_env, 'inventory', None):
                             final_price = self.eval_env.prices[self.eval_env.current_step]
@@ -220,7 +224,11 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                     for i, p in enumerate(vp): logging.info(f"[Eval] val   ep {i}:profit {p:.6f}")
                     mpt, mrt, mtt = np.mean(tp), np.mean(tr), np.mean(ttrades)
                     mpv, mrv, mv = np.mean(vp), np.mean(vr), np.mean(vtrades)
-                    sharpe = mpv / (np.std(vp) + 1e-8)
+                    num_val_trades = mv
+                    if num_val_trades > 0 and len(vp) > 1:
+                        sharpe = mpv / (np.std(vp) + 1e-8)
+                    else:
+                        sharpe = 0.0
                     # Report with high precision
                     msg = (f"[Eval] Step {self.num_timesteps}: "
                            f"TrainProfit {mpt:.6f}, ValProfit {mpv:.6f}, Sharpe {sharpe:.6f}, "
@@ -247,26 +255,14 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         model = TD3(
             'MlpPolicy',
             env,
-            action_noise=action_noise,
-            learning_rate=1e-3,
-            buffer_size=1000000,
-            learning_starts=1000,
-            batch_size=100,
-            tau=0.005,
-            gamma=0.99,
-            train_freq=(1, 'step'),
-            gradient_steps=1,
-            policy_kwargs=dict(
-                net_arch=[400, 300],
-                optimizer_class=torch.optim.AdamW,
-                optimizer_kwargs={"weight_decay": 1e-4},
-            ),
-            verbose=0
+            learning_rate=3e-4,
+            batch_size=256,
+            buffer_size=1_000_000,
         )
         # Setup callbacks: progress bar and evaluation with early stopping
         save_path = f'{td3_save_name}_{os.path.splitext(stock)[0]}'
         tqdm_cb = TqdmCallback(td3_timesteps)
-        eval_cb = EvalCallbackTD3(train_eval_env, eval_env, eval_freq=10000, n_eval_episodes=3, patience=3, save_path=save_path)
+        eval_cb = EvalCallbackTD3(train_eval_env, eval_env, eval_freq=5000, n_eval_episodes=3, patience=3, save_path=save_path)
         # Train with callbacks, allow interruption
         try:
             model.learn(total_timesteps=td3_timesteps, callback=[tqdm_cb, eval_cb])
@@ -285,7 +281,8 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
             obs, reward, done, _, _ = env_train.step(action); total_profit_train += reward
         if getattr(env_train, 'inventory', None):
             final_price = env_train.prices[env_train.current_step]
-            for bp in env_train.inventory: total_profit_train += final_price - bp
+            for bp in env_train.inventory:
+                total_profit_train += final_price - bp
             env_train.inventory.clear()
         print(f'Training Total Profit: {total_profit_train:.4f}, Trades: {trades_train}')
         logging.info(f'Training Total Profit: {total_profit_train:.4f}, Trades: {trades_train}')
@@ -300,7 +297,8 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
             obs, reward, done, _, _ = env_val.step(action); total_profit += reward
         if getattr(env_val, 'inventory', None):
             final_price = env_val.prices[env_val.current_step]
-            for bp in env_val.inventory: total_profit += final_price - bp
+            for bp in env_val.inventory:
+                total_profit += final_price - bp
             env_val.inventory.clear()
         print(f'Validation Total Profit: {total_profit:.4f}, Trades: {trades_val}')
         logging.info(f'Validation Total Profit: {total_profit:.4f}, Trades: {trades_val}')

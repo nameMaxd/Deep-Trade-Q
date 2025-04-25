@@ -41,7 +41,7 @@ def show_eval_result(model_name, profit, initial_offset):
         logging.info('{}: {}\n'.format(model_name, format_position(profit_val)))
 
 
-WINDOW_SIZE = 20
+WINDOW_SIZE = 50  # Fixed window size for all modules
 
 def minmax_normalize(arr):
     arr = np.array(arr)

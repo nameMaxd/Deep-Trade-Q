@@ -34,8 +34,8 @@ class Agent:
 
         # agent config
         # Используем переданный window_size для расчёта размера состояния
-        self.window_size = state_size
-        self.state_size = state_size - 1 + 4    # теперь включает vol_ratio
+        self.window_size = WINDOW_SIZE
+        self.state_size = WINDOW_SIZE - 1 + 4    # теперь включает vol_ratio
         self.action_size = 3           		# [sit, buy, sell]
         self.model_name = model_name
         self.inventory = []
@@ -120,8 +120,12 @@ class Agent:
         """
         self.memory.append((state, action, reward, next_state, done))
 
-    def act(self, state, is_eval=False):
+    def act(self, state, is_eval=False, episode=0):
         """Take action (Boltzmann sampling in training, threshold-greedy in eval)"""
+        if not is_eval:
+            epsilon = max(0.5, 1.0 - (episode / 1000))  # Min 50% random actions
+            if random.random() < epsilon:
+                return random.choice([0, 1, 2])
         q_values = self.model.predict(state, verbose=0)[0]
         # Boltzmann sampling during training
         if not is_eval:

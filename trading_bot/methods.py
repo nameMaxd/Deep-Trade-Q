@@ -53,12 +53,12 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
                 curr_price = float(data[t][0])
                 delta = curr_price - bought_price
                 if delta > 0:
-                    reward = float(delta) * 1.0
+                    reward = float(delta) * 10.0
                 else:
-                    reward = -abs(float(delta)) * 1.0
+                    reward = -abs(float(delta)) * 0.5
                 total_profit += float(delta)
             else:
-                reward = -0.05  # штраф за SELL без inventory
+                reward = -0.02
                 print(f'[train_model] t={t} action=SELL без inventory -> штраф')
 
         # HOLD
@@ -68,10 +68,10 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
                 curr_price = float(data[t][0])
                 reward += 0.01 * (curr_price - last_buy) / (last_buy + 1e-8)
                 # штраф за слишком долгие позиции (каждая позиция)
-                reward -= 0.01 * len(agent.inventory)
+                reward -= 0.005 * len(agent.inventory)
             else:
                 # штраф за бездействие без позиции
-                reward -= 0.02
+                reward -= 0.01
 
         done = (t == data_length - 1)
         # Логируем reward (только первые 10 шагов)

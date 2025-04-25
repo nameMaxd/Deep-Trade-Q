@@ -68,7 +68,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
 
     # Настраиваем логирование в файл
     logging.basicConfig(filename="train_finetune.log", filemode="w", level=logging.INFO,
-                        format="%(asctime)s %(levelname)s %(message)s", force=True)
+                        format="%(asctime)s %(levelname)s %(message)s")
     print("Лог обучения будет писаться в train_finetune.log")
 
     # Загружаем данные 2019-01-01 — 2024-06-30
@@ -105,9 +105,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
     print(f"Train: {len(train_df)} days")
     print(f"train_data: min={np.min(train_data):.2f}, max={np.max(train_data):.2f}, mean={np.mean(train_data):.2f}")
     # Принудительно создать лог-файл
-    logging.info("=== Training started ===")
-    with open("train_finetune.log", "a") as f:
-        f.write("=== Training started ===\n")
+    with open("train_finetune.log", "a") as f: f.write("=== Training started ===\n")
 
     # Resolve pretrained model path: normalize to basename
     import glob
@@ -140,7 +138,10 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
     for strat in strategies:
         agent.strategy = strat
     pbar = tqdm(range(1, ep_count+1), desc="Finetune Epoch")
+    init_thr, final_thr = -0.01, 0.01  # dynamic threshold schedule
     for epoch in pbar:
+        # update threshold: start aggressive, end conservative
+        agent.buy_threshold = init_thr + (final_thr - init_thr) * (epoch - 1) / (ep_count - 1)
         result = train_model(agent, epoch, train_data, ep_count=ep_count, batch_size=batch_size, window_size=window_size)
         # Оценим на трейне векторизованно (batch predict)
         states = np.vstack([get_state(train_data, i, window_size)[0] for i in range(len(train_data)-1)])
@@ -169,12 +170,9 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         logging.info(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}")
         with open("train_finetune.log", "a") as f:
             f.write(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}\n")
-        logging.info(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}")
         # Evaluate on val set
         val_profit, _ = evaluate_model(agent, val_data, window_size, debug, min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices))
         logging.info(f"Epoch {epoch}/{ep_count}: val_profit={val_profit:.2f}")
-        with open("train_finetune.log", "a") as f:
-            f.write(f"Epoch {epoch}/{ep_count}: val_profit={val_profit:.2f}\n")
         pbar.set_postfix(train_profit=f"{profit:.2f}", val_profit=f"{val_profit:.2f}", sharpe=f"{sharpe:.2f}")
         if best_val_profit is None or val_profit > best_val_profit:
             best_val_profit = val_profit

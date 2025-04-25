@@ -29,7 +29,7 @@ def huber_loss(y_true, y_pred, clip_delta=1.0):
 class Agent:
     """ Stock Trading Bot """
 
-    def __init__(self, state_size, strategy="t-dqn", reset_every=5000, pretrained=False, model_name=None, buy_threshold=0.0):
+    def __init__(self, state_size, strategy="t-dqn", reset_every=5000, pretrained=False, model_name=None, buy_threshold=-0.01):
         self.strategy = strategy
 
         # agent config
@@ -129,7 +129,8 @@ class Agent:
         q_values = self.model.predict(state, verbose=0)[0]
         if q_values[1] - q_values[0] > self.buy_threshold:
             return 1
-        if q_values[2] - q_values[0] > self.buy_threshold:
+        # SELL only if inventory available
+        if q_values[2] - q_values[0] > self.buy_threshold and self.inventory:
             return 2
         return 0
 

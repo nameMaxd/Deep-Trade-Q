@@ -14,16 +14,16 @@ from trading_bot.utils import WINDOW_SIZE
 
 
 def huber_loss(y_true, y_pred, clip_delta=1.0):
-    """Huber loss - Custom Loss Function for Q Learning
-
-    Links: 	https://en.wikipedia.org/wiki/Huber_loss
-            https://jaromiru.com/2017/05/27/on-using-huber-loss-in-deep-q-learning/
-    """
+    """Huber loss - Custom Loss Function for Q Learning"""
     error = y_true - y_pred
-    cond = K.abs(error) <= clip_delta
-    squared_loss = 0.5 * K.square(error)
-    quadratic_loss = 0.5 * K.square(clip_delta) + clip_delta * (K.abs(error) - clip_delta)
-    return K.mean(tf.where(cond, squared_loss, quadratic_loss))
+    # condition for small error
+    cond = tf.abs(error) <= clip_delta
+    # squared loss for small errors
+    squared_loss = 0.5 * tf.square(error)
+    # linear loss for large errors
+    quadratic_loss = 0.5 * tf.square(clip_delta) + clip_delta * (tf.abs(error) - clip_delta)
+    # combine
+    return tf.reduce_mean(tf.where(cond, squared_loss, quadratic_loss))
 
 
 class Agent:
@@ -126,7 +126,7 @@ class Agent:
         if not is_eval and random.random() <= self.epsilon:
             return random.randrange(self.action_size)
         # exploitation with threshold: buy/sell if Q advantage over HOLD > threshold
-        q_values = self.model.predict(state)[0]
+        q_values = self.model.predict(state, verbose=0)[0]
         if q_values[1] - q_values[0] > self.buy_threshold:
             return 1
         if q_values[2] - q_values[0] > self.buy_threshold:
@@ -146,10 +146,10 @@ class Agent:
                     target = reward
                 else:
                     # approximate deep q-learning equation
-                    target = reward + self.gamma * np.amax(self.model.predict(next_state)[0])
+                    target = reward + self.gamma * np.amax(self.model.predict(next_state, verbose=0)[0])
 
                 # estimate q-values based on current state
-                q_values = self.model.predict(state)
+                q_values = self.model.predict(state, verbose=0)
                 # update the target for current action based on discounted reward
                 q_values[0][action] = target
 
@@ -167,10 +167,10 @@ class Agent:
                     target = reward
                 else:
                     # approximate deep q-learning equation with fixed targets
-                    target = reward + self.gamma * np.amax(self.target_model.predict(next_state)[0])
+                    target = reward + self.gamma * np.amax(self.model.predict(next_state, verbose=0)[0])
 
                 # estimate q-values based on current state
-                q_values = self.model.predict(state)
+                q_values = self.model.predict(state, verbose=0)
                 # update the target for current action based on discounted reward
                 q_values[0][action] = target
 
@@ -188,10 +188,10 @@ class Agent:
                     target = reward
                 else:
                     # approximate double deep q-learning equation
-                    target = reward + self.gamma * self.target_model.predict(next_state)[0][np.argmax(self.model.predict(next_state)[0])]
+                    target = reward + self.gamma * self.target_model.predict(next_state, verbose=0)[0][np.argmax(self.model.predict(next_state, verbose=0)[0])]
 
                 # estimate q-values based on current state
-                q_values = self.model.predict(state)
+                q_values = self.model.predict(state, verbose=0)
                 # update the target for current action based on discounted reward
                 q_values[0][action] = target
 

@@ -6,6 +6,7 @@ Usage:
     [--window-size=<window-size>] [--batch-size=<batch-size>]
     [--episode-count=<episode-count>] [--model-name=<model-name>]
     [--pretrained] [--debug] [--model-type=<model-type>]
+    [--target-update=<target-update>]
 
 Options:
   --strategy=<strategy>             Q-learning strategy to use for training the network. Options:
@@ -22,6 +23,7 @@ Options:
                                     trained model (reads `model-name`).
   --debug                           Specifies whether to use verbose logs during eval operation.
   --model-type=<model-type>         Model type: 'dense' (default) or 'lstm'.
+  --target-update=<target-update>    Target network update frequency (episodes). [default: 100]
 
 """
 
@@ -53,7 +55,7 @@ tf.config.threading.set_inter_op_parallelism_threads(os.cpu_count())
 
 def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
          strategy="t-dqn", model_name=None, pretrained=False,
-         debug=False, model_type='dense'):
+         debug=False, model_type='dense', target_update=100):
     import numpy as np
     """ Finetune the stock trading bot on a large interval (2019-01-01 — 2024-06-30).
     Logs each epoch to train_finetune.log, uses tqdm for progress.
@@ -120,7 +122,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
             model_name = os.path.basename(model_name)
 
     # Initialize agent with dynamic window_size (state_size computed internally)
-    agent = Agent(window_size, strategy=strategy, pretrained=pretrained, model_name=model_name)
+    agent = Agent(window_size, strategy=strategy, reset_every=target_update, pretrained=pretrained, model_name=model_name)
     agent.model_type = model_type
     if model_type == 'lstm' and model_name and not model_name.endswith('_LSTM'):
         model_name += '_LSTM'
@@ -188,6 +190,7 @@ if __name__ == "__main__":
     pretrained = args["--pretrained"]
     debug = args["--debug"]
     model_type = args.get("--model-type") or 'dense'
+    target_update = int(args.get("--target-update") or 100)
 
     # LSTM: 500 эпох, earlystop=50
     if model_type == 'lstm':
@@ -197,4 +200,4 @@ if __name__ == "__main__":
         earlystop_patience = None
 
     main(stock, window_size=window_size, batch_size=batch_size, ep_count=ep_count,
-         strategy=strategy, model_name=model_name, pretrained=pretrained, debug=debug, model_type=model_type)
+         strategy=strategy, model_name=model_name, pretrained=pretrained, debug=debug, model_type=model_type, target_update=target_update)

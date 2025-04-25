@@ -25,9 +25,7 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
 
     min_v = np.min(data)
     max_v = np.max(data)
-    # Гарантируем согласованность размерности состояния с агентом
-    state_size = window_size - 1 + 4
-    agent.state_size = state_size
+    # state_size устанавливается в Agent.__init__, get_state принимает min_v,max_v
     state = get_state(data, 0, window_size, min_v=min_v, max_v=max_v)
 
     # tqdm будет печатать прогресс только в консоль, не в лог
@@ -97,16 +95,24 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
     return (episode, ep_count, total_profit, np.mean(np.array(avg_loss)))
 
 
-def evaluate_model(agent, data, window_size, debug):
+def evaluate_model(agent, data, window_size, debug, min_v=None, max_v=None):
+    import numpy as np
+    # prepare evaluation
+    agent.memory.clear()
+    agent.epsilon = 0.0
+    agent.first_iter = True
+    # compute normalization bounds
+    if min_v is None or max_v is None:
+        arr = np.array(data)
+        min_v, max_v = np.min(arr), np.max(arr)
     total_profit = 0
     data_length = len(data) - 1
-
     history = []
     agent.inventory = []
-    
-    state = get_state(data, 0, window_size)
+    # initial state
+    state = get_state(data, 0, window_size, min_v=min_v, max_v=max_v)
 
-    for t in range(data_length):        
+    for t in range(data_length):
         reward = 0
         next_state = get_state(data, t + 1, window_size, min_v=min_v, max_v=max_v)
         
@@ -136,7 +142,8 @@ def evaluate_model(agent, data, window_size, debug):
             history.append((data[t], "HOLD"))
 
         done = (t == data_length - 1)
-        agent.memory.append((state, action, reward, next_state, done))
+        # do not add eval experiences to training memory
+        # agent.memory.append((state, action, reward, next_state, done))
 
         state = next_state
         if done:

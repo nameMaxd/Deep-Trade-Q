@@ -29,7 +29,7 @@ def huber_loss(y_true, y_pred, clip_delta=1.0):
 class Agent:
     """ Stock Trading Bot """
 
-    def __init__(self, state_size, strategy="t-dqn", reset_every=5000, pretrained=False, model_name=None):
+    def __init__(self, state_size, strategy="t-dqn", reset_every=5000, pretrained=False, model_name=None, buy_threshold=0.0):
         self.strategy = strategy
 
         # agent config
@@ -40,7 +40,7 @@ class Agent:
         self.model_name = model_name
         self.inventory = []
         self.memory = deque(maxlen=10000)
-        self.first_iter = True
+        self.buy_threshold = buy_threshold
 
         # model config
         self.model_name = model_name
@@ -122,16 +122,16 @@ class Agent:
     def act(self, state, is_eval=False):
         """Take action from given possible set of actions
         """
-        # take random action in order to diversify experience at the beginning
+        # ε-greedy exploration
         if not is_eval and random.random() <= self.epsilon:
             return random.randrange(self.action_size)
-
-        if self.first_iter:
-            self.first_iter = False
-            return 1 # make a definite buy on the first iter
-
-        action_probs = self.model.predict(state)
-        return np.argmax(action_probs[0])
+        # exploitation with threshold: buy/sell if Q advantage over HOLD > threshold
+        q_values = self.model.predict(state)[0]
+        if q_values[1] - q_values[0] > self.buy_threshold:
+            return 1
+        if q_values[2] - q_values[0] > self.buy_threshold:
+            return 2
+        return 0
 
     def train_experience_replay(self, batch_size):
         """Train on previous experiences in memory

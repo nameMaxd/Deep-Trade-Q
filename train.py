@@ -85,13 +85,18 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
     df = pd.read_csv(io.StringIO('\n'.join(raw_lines)))
     df["Date"] = pd.to_datetime(df["Date"])
     df = df.sort_values("Date").reset_index(drop=True)
+    # Split into train (2015–2023) and validation (2024-01-01–2024-06-30)
     train_df = df[(df["Date"] >= "2015-01-01") & (df["Date"] < "2024-01-01")]
+    val_df = df[(df["Date"] >= "2024-01-01") & (df["Date"] <= "2024-06-30")]
     raw_train_prices = train_df["Adj Close"].values
     raw_train_volumes = train_df["Volume"].values
     # normalize price and volume and combine
     price_norm = list(minmax_normalize(raw_train_prices))
     vol_norm = list(minmax_normalize(raw_train_volumes))
     train_data = list(zip(price_norm, vol_norm))
+    val_price = list(minmax_normalize(raw_train_prices[len(train_df):]))
+    val_vol = list(minmax_normalize(raw_train_volumes[len(train_df):]))
+    val_data = list(zip(val_price, val_vol))
     print(f"Train: {len(train_df)} days")
     print(f"train_data: min={np.min(train_data):.2f}, max={np.max(train_data):.2f}, mean={np.mean(train_data):.2f}")
     # Принудительно создать лог-файл
@@ -121,8 +126,12 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         model_name += '_LSTM'
         agent.model_name = model_name
 
-    best_profit = None
-    best_epoch = None
+    best_val_profit = None
+    best_val_epoch = None
+    no_improve = 0
+    strategies = strategy.split(",")
+    for strat in strategies:
+        agent.strategy = strat
     for epoch in tqdm(range(1, ep_count+1), desc="Finetune Epoch"):
         result = train_model(agent, epoch, train_data, ep_count=ep_count, batch_size=batch_size, window_size=window_size)
         # Оценим на трейне (для контроля)
@@ -150,14 +159,21 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         logging.info(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={buy_count+sell_count}")
         with open("train_finetune.log", "a") as f:
             f.write(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={buy_count+sell_count}\n")
-        if best_profit is None or profit > best_profit:
-            best_profit = profit
-            best_epoch = epoch
-            # Сохраняем лучшие веса
-            agent.model.save_weights("models/model_t-dqn_GOOG_10_finetuned.h5")
-    print(f"Лучший train profit={best_profit:.2f} на эпохе {best_epoch}. Веса сохранены в models/model_t-dqn_GOOG_10_finetuned.h5")
-    with open("train_finetune.log", "a") as f:
-        f.write(f"Лучший train profit={best_profit:.2f} на эпохе {best_epoch}.\n")
+        # Evaluate on val set
+        val_profit, _ = evaluate_model(agent, val_data, window_size, debug, min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices))
+        logging.info(f"Epoch {epoch}/{ep_count}: val_profit={val_profit:.2f}")
+        if best_val_profit is None or val_profit > best_val_profit:
+            best_val_profit = val_profit
+            best_val_epoch = epoch
+            agent.model.save_weights(f"models/best_{strat}_{model_name}_{window_size}.h5")
+            no_improve = 0
+        else:
+            no_improve += 1
+        if earlystop_patience and no_improve >= earlystop_patience:
+            print(f"Early stopping at epoch {epoch}")
+            break
+    print(f"Best val profit={best_val_profit:.2f} at epoch {best_val_epoch}")
+    logging.info(f"Best val profit={best_val_profit:.2f} at epoch {best_val_epoch}")
 
 
 if __name__ == "__main__":

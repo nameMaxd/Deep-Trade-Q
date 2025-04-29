@@ -225,8 +225,10 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                     mpt, mrt, mtt = np.mean(tp), np.mean(tr), np.mean(ttrades)
                     mpv, mrv, mv = np.mean(vp), np.mean(vr), np.mean(vtrades)
                     num_val_trades = mv
-                    if num_val_trades > 0 and len(vp) > 1:
-                        sharpe = mpv / (np.std(vp) + 1e-8)
+                    # Compute Sharpe ratio across episodes; avoid huge values when returns constant
+                    if len(vp) > 1:
+                        std_vp = np.std(vp, ddof=1)
+                        sharpe = mpv / std_vp if std_vp > 0 else 0.0
                     else:
                         sharpe = 0.0
                     # Report with high precision

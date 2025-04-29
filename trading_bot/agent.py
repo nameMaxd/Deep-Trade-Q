@@ -133,12 +133,8 @@ class Agent:
             exp_q = np.exp(logits - np.max(logits))
             probs = exp_q / np.sum(exp_q)
             return np.random.choice(self.action_size, p=probs)
-        # Greedy threshold decision during evaluation
-        if q_values[1] - q_values[0] > self.buy_threshold:
-            return 1
-        if q_values[2] - q_values[0] > self.buy_threshold and self.inventory:
-            return 2
-        return 0
+        # Deterministic greedy decision during evaluation
+        return int(np.argmax(q_values))
 
     def train_experience_replay(self, batch_size):
         """Train on previous experiences in memory

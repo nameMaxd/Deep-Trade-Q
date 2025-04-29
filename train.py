@@ -157,7 +157,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                         obs, _ = self.train_env.reset(); done=False; p_t=0.0; r_t=0.0; trade_t=0; steps=0
                         buy_t = sell_t = hold_t = 0
                         while not done:
-                            act, _ = self.model.predict(obs, deterministic=False)
+                            act, _ = self.model.predict(obs, deterministic=True)
                             obs, rew, done, _, info = self.train_env.step(act)
                             real_action = info.get('real_action', act)
                             if real_action == 0:
@@ -248,8 +248,17 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
 
         # создаём среды
         env = TradingEnv(raw_train_prices, raw_train_volumes, window_size)
-        train_eval_env = TradingEnv(raw_train_prices, raw_train_volumes, window_size)
-        eval_env = TradingEnv(raw_val_prices, raw_val_volumes, window_size)
+        # enforce same normalization bounds for train and val envs
+        train_eval_env = TradingEnv(raw_train_prices, raw_train_volumes, window_size,
+                                     commission=0.0, max_inventory=1000,
+                                     carry_cost=0.0,
+                                     min_v=np.min(raw_train_prices),
+                                     max_v=np.max(raw_train_prices))
+        eval_env = TradingEnv(raw_val_prices, raw_val_volumes, window_size,
+                               commission=0.0, max_inventory=1000,
+                               carry_cost=0.0,
+                               min_v=np.min(raw_train_prices),
+                               max_v=np.max(raw_train_prices))
         # continuous action dim for TD3 (shape of Box)
         n_actions = env.action_space.shape[0]
         action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=td3_noise_sigma * np.ones(n_actions))
@@ -278,7 +287,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         env_train = TradingEnv(raw_train_prices, raw_train_volumes, window_size)
         obs, _ = env_train.reset(); done=False; total_profit_train=0.0; trades_train=0
         while not done:
-            action, _ = model.predict(obs, deterministic=False)
+            action, _ = model.predict(obs, deterministic=True)
             if action != 0: trades_train += 1
             obs, reward, done, _, _ = env_train.step(action); total_profit_train += reward
         if getattr(env_train, 'inventory', None):
@@ -294,7 +303,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         env_val = TradingEnv(raw_val_prices, raw_val_volumes, window_size)
         obs, _ = env_val.reset(); done=False; total_profit=0.0; trades_val=0
         while not done:
-            action, _ = model.predict(obs, deterministic=False)
+            action, _ = model.predict(obs, deterministic=True)
             if action != 0: trades_val += 1
             obs, reward, done, _, _ = env_val.step(action); total_profit += reward
         if getattr(env_val, 'inventory', None):

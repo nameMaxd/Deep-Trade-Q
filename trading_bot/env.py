@@ -6,10 +6,16 @@ from .ops import get_state
 class TradingEnv(gym.Env):
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self, prices, volumes, window_size, commission=0.001):
+    def __init__(self, prices, volumes, window_size, commission=0.001, max_inventory=5, carry_cost=0.0001, min_v=None, max_v=None):
         super().__init__()
         self.prices = prices
         self.volumes = volumes
+        # position limits and holding costs
+        self.max_inventory = max_inventory
+        self.carry_cost = carry_cost
+        # global normalization bounds override
+        self.global_min_v = min_v
+        self.global_max_v = max_v
         self.window_size = window_size
         # features: window_size-1 sigmoids + SMA, EMA, RSI, vol_ratio + momentum, volatility
         self.state_size = window_size - 1 + 6
@@ -30,8 +36,15 @@ class TradingEnv(gym.Env):
         self.total_profit = 0.0
         # penalty for holding to force actions
         self.hold_penalty = 0.1  # increased hold penalty to encourage trades
-        self.min_v = np.min(self.prices)
-        self.max_v = np.max(self.prices)
+        # global normalization bounds if provided, else compute from data
+        if self.global_min_v is not None:
+            self.min_v = self.global_min_v
+        else:
+            self.min_v = np.min(self.prices)
+        if self.global_max_v is not None:
+            self.max_v = self.global_max_v
+        else:
+            self.max_v = np.max(self.prices)
         # get state array
         state_arr = get_state(
             list(zip(self.prices, self.volumes)),
@@ -48,14 +61,18 @@ class TradingEnv(gym.Env):
             a = float(action)
         action = int(np.clip(np.round(a), 0, 2))
         price = float(self.prices[self.current_step])
-        # initialize reward: penalize hold, apply commission on buy/sell
+        # initialize reward: penalize hold, apply commission on buy/sell, enforce limits
         reward = 0.0
         if action == 0:
             reward -= self.hold_penalty
         elif action == 1:
             # BUY
-            self.inventory.append(price)
-            reward -= self.commission * price
+            if len(self.inventory) < self.max_inventory:
+                self.inventory.append(price)
+                reward -= self.commission * price
+            else:
+                # inventory limit reached
+                reward -= self.hold_penalty
         elif action == 2:
             # SELL
             if self.inventory:
@@ -68,6 +85,8 @@ class TradingEnv(gym.Env):
                 self.total_profit += net
             else:
                 reward -= self.hold_penalty
+        # carry cost per item in inventory
+        reward -= self.carry_cost * len(self.inventory)
         self.current_step += 1
         done = self.current_step >= len(self.prices) - 1
         # get state array

@@ -6,18 +6,21 @@ from .ops import get_state
 class TradingEnv(gym.Env):
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self, prices, volumes, window_size):
+    def __init__(self, prices, volumes, window_size, commission=0.001):
         super().__init__()
         self.prices = prices
         self.volumes = volumes
         self.window_size = window_size
-        self.state_size = window_size - 1 + 4
-        # continuous Box for TD3, map to discrete in step
+        # features: window_size-1 sigmoids + SMA, EMA, RSI, vol_ratio + momentum, volatility
+        self.state_size = window_size - 1 + 6
+        # transaction commission fraction
+        self.commission = commission
         self.action_space = spaces.Box(
             low=np.array([0.0]), high=np.array([2.0]), shape=(1,), dtype=np.float32
         )
         self.observation_space = spaces.Box(
-            low=0.0, high=1.0, shape=(self.state_size,), dtype=np.float32
+            low=0.0, high=1.0,
+            shape=(self.state_size,), dtype=np.float32
         )
 
     def reset(self, seed=None, options=None):
@@ -45,23 +48,26 @@ class TradingEnv(gym.Env):
             a = float(action)
         action = int(np.clip(np.round(a), 0, 2))
         price = float(self.prices[self.current_step])
-        # reward shaping: penalty for hold, penalty for invalid sell
+        # initialize reward: penalize hold, apply commission on buy/sell
         reward = 0.0
         if action == 0:
-            reward = -self.hold_penalty
-        # BUY
-        if action == 1:
+            reward -= self.hold_penalty
+        elif action == 1:
+            # BUY
             self.inventory.append(price)
-        # SELL
+            reward -= self.commission * price
         elif action == 2:
+            # SELL
             if self.inventory:
                 bought = self.inventory.pop(0)
-                trade_reward = price - bought
-                reward += trade_reward
-                self.total_profit += trade_reward
+                profit = price - bought
+                # commission on both sides
+                cost = (price + bought) * self.commission
+                net = profit - cost
+                reward += net
+                self.total_profit += net
             else:
-                # invalid sell -> punish
-                reward += -self.hold_penalty
+                reward -= self.hold_penalty
         self.current_step += 1
         done = self.current_step >= len(self.prices) - 1
         # get state array

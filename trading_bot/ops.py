@@ -48,10 +48,15 @@ def get_state(data, t, window_size, min_v=None, max_v=None):
     # add volume ratio feature
     vol_ratio = vol_arr[-1] / (np.mean(vol_arr) + 1e-8)
     res += [sma_n, ema_n, rsi_n, vol_ratio]
+    # Add momentum and volatility features
+    mom = (price_arr[-1] - price_arr[0]) / price_arr[0] if price_arr[0] > 0 else 0
+    mom_n = sigmoid(mom)
+    vol_std = price_arr.std() / (max_v - min_v) if max_v > min_v else 0
+    res += [mom_n, vol_std]
     # Логируем признаки только для первых 5 вызовов за запуск
     if not hasattr(get_state, '_log_count'):
         get_state._log_count = 0
     if get_state._log_count < 5:
-        print(f'[get_state] t={t} block={block} sigmoids={res[:-4]} sma_n={sma_n:.4f} ema_n={ema_n:.4f} rsi_n={rsi_n:.4f} vol_ratio={vol_ratio:.4f}')
+        print(f'[get_state] t={t} block={block} sigmoids={res[:-6]} sma_n={sma_n:.4f} ema_n={ema_n:.4f} rsi_n={rsi_n:.4f} vol_ratio={vol_ratio:.4f} mom_n={mom_n:.4f} vol_std={vol_std:.4f}')
         get_state._log_count += 1
     return np.array([res])

@@ -45,23 +45,23 @@ class TradingEnv(gym.Env):
             a = float(action)
         action = int(np.clip(np.round(a), 0, 2))
         price = float(self.prices[self.current_step])
-        # override hold action to force trades with penalty
-        penalty = 0.0
+        # reward shaping: penalty for hold, penalty for invalid sell
+        reward = 0.0
         if action == 0:
-            penalty = -self.hold_penalty
-            # force trade: buy if no inventory, else sell
-            action = 1 if not self.inventory else 2
-        # initialize reward with penalty
-        reward = penalty
+            reward = -self.hold_penalty
         # BUY
         if action == 1:
             self.inventory.append(price)
         # SELL
-        elif action == 2 and self.inventory:
-            bought = self.inventory.pop(0)
-            trade_reward = price - bought
-            reward += trade_reward
-            self.total_profit += trade_reward
+        elif action == 2:
+            if self.inventory:
+                bought = self.inventory.pop(0)
+                trade_reward = price - bought
+                reward += trade_reward
+                self.total_profit += trade_reward
+            else:
+                # invalid sell -> punish
+                reward += -self.hold_penalty
         self.current_step += 1
         done = self.current_step >= len(self.prices) - 1
         # get state array
@@ -71,4 +71,6 @@ class TradingEnv(gym.Env):
             min_v=self.min_v, max_v=self.max_v
         )[0]
         obs = state_arr.astype(np.float32)
-        return obs, reward, done, False, {}
+        # info теперь содержит реальное действие
+        info = {'real_action': action}
+        return obs, reward, done, False, info

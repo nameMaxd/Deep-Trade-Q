@@ -158,19 +158,19 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                         buy_t = sell_t = hold_t = 0
                         while not done:
                             act, _ = self.model.predict(obs, deterministic=False)
-                            if act == 0:
+                            obs, rew, done, _, info = self.train_env.step(act)
+                            real_action = info.get('real_action', act)
+                            if real_action == 0:
                                 hold_t += 1
-                            elif act == 1:
+                            elif real_action == 1:
                                 buy_t += 1; trade_t += 1
-                            elif act == 2:
+                            elif real_action == 2:
                                 # Count only successful sells
                                 if self.train_env.inventory:
                                     sell_t += 1; trade_t += 1
                                 else:
-                                    # unsuccessful sell -> hold
                                     hold_t += 1
-                            obs, rew, done, _, _ = self.train_env.step(act)
-                            if act == 2:
+                            if real_action == 2:
                                 p_t += rew
                             r_t += rew; steps += 1
                         # liquidate remaining positions at end of episode
@@ -189,18 +189,18 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                         buy_v = sell_v = hold_v = 0
                         while not done:
                             act, _ = self.model.predict(obs, deterministic=True)
-                            if act == 0:
+                            obs, rew, done, _, info = self.eval_env.step(act)
+                            real_action = info.get('real_action', act)
+                            if real_action == 0:
                                 hold_v += 1
-                            elif act == 1:
+                            elif real_action == 1:
                                 buy_v += 1; trade_v += 1
-                            elif act == 2:
-                                # Count only successful sells
+                            elif real_action == 2:
                                 if self.eval_env.inventory:
                                     sell_v += 1; trade_v += 1
                                 else:
                                     hold_v += 1
-                            obs, rew, done, _, _ = self.eval_env.step(act)
-                            if act == 2:
+                            if real_action == 2:
                                 p_v += rew
                             r_v += rew; steps += 1
                         # liquidate remaining positions at end of episode

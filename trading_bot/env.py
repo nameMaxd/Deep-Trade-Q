@@ -6,7 +6,7 @@ from .ops import get_state
 class TradingEnv(gym.Env):
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self, prices, volumes, window_size, commission=0.001, max_inventory=8, carry_cost=0.0001, min_trade_value=2.5, min_v=None, max_v=None):
+    def __init__(self, prices, volumes, window_size, commission=0.001, max_inventory=8, carry_cost=0.0001, min_trade_value=2.5, min_v=None, max_v=None, risk_lambda=0.1, drawdown_lambda=0.1, dual_phase=True):
         super().__init__()
         self.prices = prices
         self.volumes = volumes
@@ -23,6 +23,10 @@ class TradingEnv(gym.Env):
         self.commission = commission
         # minimum trade value threshold (in $) to open a position
         self.min_trade_value = min_trade_value
+        # risk aversion parameters
+        self.risk_lambda = risk_lambda
+        self.drawdown_lambda = drawdown_lambda
+        self.dual_phase = dual_phase
         self.action_space = spaces.Box(
             low=np.array([0.0]), high=np.array([2.0]), shape=(1,), dtype=np.float32
         )
@@ -36,6 +40,15 @@ class TradingEnv(gym.Env):
         self.current_step = 0
         self.inventory = []
         self.total_profit = 0.0
+        # initialize risk tracking
+        self.rewards = []
+        self.equity = [0.0]
+        self.max_equity = 0.0
+        # choose episode phase
+        if self.dual_phase:
+            self.phase = 'exploration' if np.random.rand() < 0.5 else 'exploitation'
+        else:
+            self.phase = 'exploitation'
         # penalty for holding to force actions
         self.hold_penalty = 0.1  # increased hold penalty to encourage trades
         # global normalization bounds if provided, else compute from data
@@ -88,6 +101,18 @@ class TradingEnv(gym.Env):
                 reward -= self.hold_penalty
         # carry cost per item in inventory
         reward -= self.carry_cost * len(self.inventory)
+        # update risk metrics
+        self.rewards.append(reward)
+        self.equity.append(self.equity[-1] + reward)
+        self.max_equity = max(self.max_equity, self.equity[-1])
+        vol = float(np.std(self.rewards)) if len(self.rewards) > 1 else 0.0
+        drawdown = float(self.max_equity - self.equity[-1])
+        if self.dual_phase and self.phase == 'exploration':
+            # exploration phase: focus on risk minimization
+            reward = - self.risk_lambda * vol - self.drawdown_lambda * drawdown
+        else:
+            # exploitation phase or no dual phase: profit minus risk penalties
+            reward = reward - self.risk_lambda * vol - self.drawdown_lambda * drawdown
         self.current_step += 1
         done = self.current_step >= len(self.prices) - 1
         # get state array

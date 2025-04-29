@@ -1,53 +1,55 @@
-2025-04-29 15:38:09,993 INFO [Eval] train ep 0: profit 348.954196, buys 1231, sells 750, holds 184
-2025-04-29 15:38:12,521 INFO [Eval] train ep 1: profit 348.954196, buys 1231, sells 750, holds 184
-2025-04-29 15:38:14,970 INFO [Eval] train ep 2: profit 348.954196, buys 1231, sells 750, holds 184
-2025-04-29 15:38:15,087 INFO [Eval] val   ep 0: profit 42.632718, buys 108, sells 14, holds 1
-2025-04-29 15:38:15,202 INFO [Eval] val   ep 1: profit 42.632718, buys 108, sells 14, holds 1
-2025-04-29 15:38:15,317 INFO [Eval] val   ep 2: profit 42.632718, buys 108, sells 14, holds 1
-2025-04-29 15:38:15,318 INFO [Eval] train ep 0:profit 348.954196
-2025-04-29 15:38:15,318 INFO [Eval] train ep 1:profit 348.954196
-2025-04-29 15:38:15,318 INFO [Eval] train ep 2:profit 348.954196
-2025-04-29 15:38:15,318 INFO [Eval] val   ep 0:profit 42.632718
-2025-04-29 15:38:15,318 INFO [Eval] val   ep 1:profit 42.632718
-2025-04-29 15:38:15,318 INFO [Eval] val   ep 2:profit 42.632718
-2025-04-29 15:38:15,319 INFO [Eval] Step 5000: TrainProfit 348.954196, ValProfit 42.632718, Sharpe 0.000000, AvgReward 0.031503, TradesTrain 1981.0, TradesVal 122.0
-2025-04-29 15:39:22,884 INFO [Eval] train ep 0: profit 641.562397, buys 1325, sells 814, holds 26
-2025-04-29 15:39:25,344 INFO [Eval] train ep 1: profit 641.562397, buys 1325, sells 814, holds 26
-2025-04-29 15:39:27,835 INFO [Eval] train ep 2: profit 641.562397, buys 1325, sells 814, holds 26
-2025-04-29 15:39:27,949 INFO [Eval] val   ep 0: profit 43.768182, buys 105, sells 18, holds 0
-2025-04-29 15:39:28,065 INFO [Eval] val   ep 1: profit 43.768182, buys 105, sells 18, holds 0
-2025-04-29 15:39:28,183 INFO [Eval] val   ep 2: profit 43.768182, buys 105, sells 18, holds 0
-2025-04-29 15:39:28,183 INFO [Eval] train ep 0:profit 641.562397
-2025-04-29 15:39:28,183 INFO [Eval] train ep 1:profit 641.562397
-2025-04-29 15:39:28,184 INFO [Eval] train ep 2:profit 641.562397
-2025-04-29 15:39:28,184 INFO [Eval] val   ep 0:profit 43.768182
-2025-04-29 15:39:28,184 INFO [Eval] val   ep 1:profit 43.768182
-2025-04-29 15:39:28,184 INFO [Eval] val   ep 2:profit 43.768182
-2025-04-29 15:39:28,184 INFO [Eval] Step 10000: TrainProfit 641.562397, ValProfit 43.768182, Sharpe 0.000000, AvgReward 0.052048, TradesTrain 2139.0, TradesVal 123.0
-2025-04-29 15:40:33,808 INFO [Eval] train ep 0: profit 2972.322142, buys 1585, sells 555, holds 25
-2025-04-29 15:40:36,146 INFO [Eval] train ep 1: profit 2972.322142, buys 1585, sells 555, holds 25
-2025-04-29 15:40:38,498 INFO [Eval] train ep 2: profit 2972.322142, buys 1585, sells 555, holds 25
-2025-04-29 15:40:38,608 INFO [Eval] val   ep 0: profit 46.815740, buys 112, sells 11, holds 0
-2025-04-29 15:40:38,727 INFO [Eval] val   ep 1: profit 46.815740, buys 112, sells 11, holds 0
-2025-04-29 15:40:38,833 INFO [Eval] val   ep 2: profit 46.815740, buys 112, sells 11, holds 0
-2025-04-29 15:40:38,834 INFO [Eval] train ep 0:profit 2972.322142
-2025-04-29 15:40:38,834 INFO [Eval] train ep 1:profit 2972.322142
-2025-04-29 15:40:38,834 INFO [Eval] train ep 2:profit 2972.322142
-2025-04-29 15:40:38,834 INFO [Eval] val   ep 0:profit 46.815740
-2025-04-29 15:40:38,835 INFO [Eval] val   ep 1:profit 46.815740
-2025-04-29 15:40:38,835 INFO [Eval] val   ep 2:profit 46.815740
-2025-04-29 15:40:38,835 INFO [Eval] Step 15000: TrainProfit 2972.322142, ValProfit 46.815740, Sharpe 0.000000, AvgReward 0.032587, TradesTrain 2140.0, TradesVal 123.0
-2025-04-29 15:41:45,122 INFO [Eval] train ep 0: profit 559.931439, buys 1291, sells 850, holds 24
-2025-04-29 15:41:47,903 INFO [Eval] train ep 1: profit 559.931439, buys 1291, sells 850, holds 24
-2025-04-29 15:41:50,539 INFO [Eval] train ep 2: profit 559.931439, buys 1291, sells 850, holds 24
-2025-04-29 15:41:50,662 INFO [Eval] val   ep 0: profit 38.408094, buys 101, sells 22, holds 0
-2025-04-29 15:41:50,792 INFO [Eval] val   ep 1: profit 38.408094, buys 101, sells 22, holds 0
-2025-04-29 15:41:50,914 INFO [Eval] val   ep 2: profit 38.408094, buys 101, sells 22, holds 0
-2025-04-29 15:41:50,915 INFO [Eval] train ep 0:profit 559.931439
-2025-04-29 15:41:50,915 INFO [Eval] train ep 1:profit 559.931439
-2025-04-29 15:41:50,915 INFO [Eval] train ep 2:profit 559.931439
-2025-04-29 15:41:50,915 INFO [Eval] val   ep 0:profit 38.408094
-2025-04-29 15:41:50,915 INFO [Eval] val   ep 1:profit 38.408094
-2025-04-29 15:41:50,915 INFO [Eval] val   ep 2:profit 38.408094
-2025-04-29 15:41:50,916 INFO [Eval] Step 20000: TrainProfit 559.931439, ValProfit 38.408094, Sharpe 0.000000, AvgReward 0.050873, TradesTrain 2141.0, TradesVal 123.0
-2025-04-29 15:41:50,935 INFO === Final Training Inference TD3 ===
+2025-04-29 16:03:27,633 INFO [Eval] train ep 0: profit -7040.639263, buys 68, sells 37, holds 2060
+2025-04-29 16:03:30,312 INFO [Eval] train ep 1: profit -7040.639263, buys 68, sells 37, holds 2060
+2025-04-29 16:03:32,992 INFO [Eval] train ep 2: profit -7156.772198, buys 68, sells 37, holds 2060
+2025-04-29 16:03:33,112 INFO [Eval] val   ep 0: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-29 16:03:33,247 INFO [Eval] val   ep 1: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-29 16:03:33,367 INFO [Eval] val   ep 2: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-29 16:03:33,368 INFO [Eval] train ep 0:profit -7040.639263
+2025-04-29 16:03:33,368 INFO [Eval] train ep 1:profit -7040.639263
+2025-04-29 16:03:33,368 INFO [Eval] train ep 2:profit -7156.772198
+2025-04-29 16:03:33,368 INFO [Eval] val   ep 0:profit 0.000000
+2025-04-29 16:03:33,368 INFO [Eval] val   ep 1:profit 0.000000
+2025-04-29 16:03:33,368 INFO [Eval] val   ep 2:profit 0.000000
+2025-04-29 16:03:33,368 INFO [Eval] Step 5000: TrainProfit -7079.350241, ValProfit 0.000000, Sharpe 0.000000, AvgReward -0.686667, TradesTrain 105.0, TradesVal 0.0
+2025-04-29 16:04:44,701 INFO [Eval] train ep 0: profit -6192.050958, buys 94, sells 48, holds 2023
+2025-04-29 16:04:47,366 INFO [Eval] train ep 1: profit -6192.050958, buys 94, sells 48, holds 2023
+2025-04-29 16:04:50,118 INFO [Eval] train ep 2: profit -6092.931740, buys 94, sells 48, holds 2023
+2025-04-29 16:04:50,248 INFO [Eval] val   ep 0: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-29 16:04:50,385 INFO [Eval] val   ep 1: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-29 16:04:50,515 INFO [Eval] val   ep 2: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-29 16:04:50,515 INFO [Eval] train ep 0:profit -6192.050958
+2025-04-29 16:04:50,515 INFO [Eval] train ep 1:profit -6192.050958
+2025-04-29 16:04:50,516 INFO [Eval] train ep 2:profit -6092.931740
+2025-04-29 16:04:50,516 INFO [Eval] val   ep 0:profit 0.000000
+2025-04-29 16:04:50,516 INFO [Eval] val   ep 1:profit 0.000000
+2025-04-29 16:04:50,516 INFO [Eval] val   ep 2:profit 0.000000
+2025-04-29 16:04:50,516 INFO [Eval] Step 10000: TrainProfit -6159.011218, ValProfit 0.000000, Sharpe 0.000000, AvgReward -0.686667, TradesTrain 142.0, TradesVal 0.0
+2025-04-29 16:05:59,568 INFO [Eval] train ep 0: profit -5514.096945, buys 121, sells 55, holds 1989
+2025-04-29 16:06:02,328 INFO [Eval] train ep 1: profit -5420.493783, buys 121, sells 55, holds 1989
+2025-04-29 16:06:04,945 INFO [Eval] train ep 2: profit -5514.096945, buys 121, sells 55, holds 1989
+2025-04-29 16:06:05,070 INFO [Eval] val   ep 0: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-29 16:06:05,199 INFO [Eval] val   ep 1: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-29 16:06:05,327 INFO [Eval] val   ep 2: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-29 16:06:05,328 INFO [Eval] train ep 0:profit -5514.096945
+2025-04-29 16:06:05,328 INFO [Eval] train ep 1:profit -5420.493783
+2025-04-29 16:06:05,328 INFO [Eval] train ep 2:profit -5514.096945
+2025-04-29 16:06:05,328 INFO [Eval] val   ep 0:profit 0.000000
+2025-04-29 16:06:05,328 INFO [Eval] val   ep 1:profit 0.000000
+2025-04-29 16:06:05,328 INFO [Eval] val   ep 2:profit 0.000000
+2025-04-29 16:06:05,329 INFO [Eval] Step 15000: TrainProfit -5482.895891, ValProfit 0.000000, Sharpe 0.000000, AvgReward -0.720000, TradesTrain 176.0, TradesVal 0.0
+2025-04-29 16:07:13,049 INFO [Eval] train ep 0: profit 1013.472811, buys 720, sells 474, holds 971
+2025-04-29 16:07:15,669 INFO [Eval] train ep 1: profit 1013.472811, buys 720, sells 474, holds 971
+2025-04-29 16:07:18,361 INFO [Eval] train ep 2: profit 1744.129295, buys 720, sells 474, holds 971
+2025-04-29 16:07:18,484 INFO [Eval] val   ep 0: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-29 16:07:18,601 INFO [Eval] val   ep 1: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-29 16:07:18,734 INFO [Eval] val   ep 2: profit 0.000000, buys 0, sells 0, holds 123
+2025-04-29 16:07:18,734 INFO [Eval] train ep 0:profit 1013.472811
+2025-04-29 16:07:18,734 INFO [Eval] train ep 1:profit 1013.472811
+2025-04-29 16:07:18,734 INFO [Eval] train ep 2:profit 1744.129295
+2025-04-29 16:07:18,734 INFO [Eval] val   ep 0:profit 0.000000
+2025-04-29 16:07:18,734 INFO [Eval] val   ep 1:profit 0.000000
+2025-04-29 16:07:18,735 INFO [Eval] val   ep 2:profit 0.000000
+2025-04-29 16:07:18,735 INFO [Eval] Step 20000: TrainProfit 1257.024972, ValProfit 0.000000, Sharpe 0.000000, AvgReward -0.653333, TradesTrain 1194.0, TradesVal 0.0
+2025-04-29 16:07:18,764 INFO === Final Training Inference TD3 ===
+2025-04-29 16:07:21,570 INFO Training Total Profit: -15527.6908, Trades: 1473
+2025-04-29 16:07:21,571 INFO === Final Validation Inference TD3 ===

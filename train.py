@@ -266,14 +266,16 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         # continuous action dim for TD3 (shape of Box)
         n_actions = env.action_space.shape[0]
         action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=td3_noise_sigma * np.ones(n_actions))
-        # Configure TD3 with tuned hyperparameters and weight decay
+        # Configure TD3 with tuned hyperparameters and deeper MLP architecture
+        policy_kwargs = dict(net_arch=[256, 256, 128])  # расширенная сеть
         model = TD3(
-            'MlpPolicy',
-            env,
-            learning_rate=3e-4,
-            batch_size=256,
-            buffer_size=1_000_000,
-        )
+             'MlpPolicy',
+             env,
+             policy_kwargs=policy_kwargs,
+             learning_rate=3e-4,
+             batch_size=256,
+             buffer_size=1_000_000,
+         )
         # Setup callbacks: progress bar and evaluation with early stopping
         save_path = f'{td3_save_name}_{os.path.splitext(stock)[0]}'
         tqdm_cb = TqdmCallback(td3_timesteps)

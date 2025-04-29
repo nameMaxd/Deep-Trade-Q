@@ -6,7 +6,7 @@ from .ops import get_state
 class TradingEnv(gym.Env):
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self, prices, volumes, window_size, commission=0.001, max_inventory=5, carry_cost=0.0001, min_v=None, max_v=None):
+    def __init__(self, prices, volumes, window_size, commission=0.001, max_inventory=8, carry_cost=0.0001, min_trade_value=2.5, min_v=None, max_v=None):
         super().__init__()
         self.prices = prices
         self.volumes = volumes
@@ -21,6 +21,8 @@ class TradingEnv(gym.Env):
         self.state_size = window_size - 1 + 6
         # transaction commission fraction
         self.commission = commission
+        # minimum trade value threshold (in $) to open a position
+        self.min_trade_value = min_trade_value
         self.action_space = spaces.Box(
             low=np.array([0.0]), high=np.array([2.0]), shape=(1,), dtype=np.float32
         )
@@ -66,20 +68,19 @@ class TradingEnv(gym.Env):
         if action == 0:
             reward -= self.hold_penalty
         elif action == 1:
-            # BUY
+            # BUY: invest fixed amount self.min_trade_value (fractional share)
             if len(self.inventory) < self.max_inventory:
-                self.inventory.append(price)
-                reward -= self.commission * price
+                qty = self.min_trade_value / price
+                self.inventory.append((price, qty))
+                reward -= self.commission * price * qty
             else:
-                # inventory limit reached
                 reward -= self.hold_penalty
         elif action == 2:
             # SELL
             if self.inventory:
-                bought = self.inventory.pop(0)
-                profit = price - bought
-                # commission on both sides
-                cost = (price + bought) * self.commission
+                bought_price, qty = self.inventory.pop(0)
+                profit = (price - bought_price) * qty
+                cost = self.commission * (price * qty + bought_price * qty)
                 net = profit - cost
                 reward += net
                 self.total_profit += net

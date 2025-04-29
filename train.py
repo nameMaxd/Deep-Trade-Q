@@ -173,11 +173,13 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                             if real_action == 2:
                                 p_t += rew
                             r_t += rew; steps += 1
-                        # liquidate remaining positions at end of episode
+                        # liquidate remaining positions at end of episode (handle price,qty)
                         if getattr(self.train_env, 'inventory', None):
-                            final_price = self.train_env.prices[self.train_env.current_step]
-                            for bp in self.train_env.inventory:
-                                p_t += final_price - bp
+                            final_price = float(self.train_env.prices[self.train_env.current_step])
+                            for bought_price, qty in self.train_env.inventory:
+                                profit = (final_price - bought_price) * qty
+                                cost = self.train_env.commission * (final_price * qty + bought_price * qty)
+                                p_t += profit - cost
                             self.train_env.inventory.clear()
                         tp.append(p_t); tr.append(r_t/steps if steps else 0.0); ttrades.append(trade_t)
                         print(f"[Eval] train ep {i}: profit {p_t:.6f}, buys {buy_t}, sells {sell_t}, holds {hold_t}")
@@ -203,11 +205,13 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                             if real_action == 2:
                                 p_v += rew
                             r_v += rew; steps += 1
-                        # liquidate remaining positions at end of episode
+                        # liquidate remaining positions at end of episode (handle price,qty)
                         if getattr(self.eval_env, 'inventory', None):
-                            final_price = self.eval_env.prices[self.eval_env.current_step]
-                            for bp in self.eval_env.inventory:
-                                p_v += final_price - bp
+                            final_price = float(self.eval_env.prices[self.eval_env.current_step])
+                            for bought_price, qty in self.eval_env.inventory:
+                                profit = (final_price - bought_price) * qty
+                                cost = self.eval_env.commission * (final_price * qty + bought_price * qty)
+                                p_v += profit - cost
                             self.eval_env.inventory.clear()
                         vp.append(p_v); vr.append(r_v/steps if steps else 0.0); vtrades.append(trade_v)
                         print(f"[Eval] val   ep {i}: profit {p_v:.6f}, buys {buy_v}, sells {sell_v}, holds {hold_v}")
@@ -295,8 +299,8 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
             for bp in env_train.inventory:
                 total_profit_train += final_price - bp
             env_train.inventory.clear()
-        print(f'Training Total Profit: {total_profit_train:.4f}, Trades: {trades_train}')
-        logging.info(f'Training Total Profit: {total_profit_train:.4f}, Trades: {trades_train}')
+        print(f'Training Total Profit: {float(total_profit_train):.4f}, Trades: {trades_train}')
+        logging.info(f'Training Total Profit: {float(total_profit_train):.4f}, Trades: {trades_train}')
         # Final inference on validation set
         print("=== Final Validation Inference TD3 ===")
         logging.info("=== Final Validation Inference TD3 ===")
@@ -311,8 +315,8 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
             for bp in env_val.inventory:
                 total_profit += final_price - bp
             env_val.inventory.clear()
-        print(f'Validation Total Profit: {total_profit:.4f}, Trades: {trades_val}')
-        logging.info(f'Validation Total Profit: {total_profit:.4f}, Trades: {trades_val}')
+        print(f'Validation Total Profit: {float(total_profit):.4f}, Trades: {trades_val}')
+        logging.info(f'Validation Total Profit: {float(total_profit):.4f}, Trades: {trades_val}')
         return
     # Resolve pretrained model path: normalize to basename
     import glob

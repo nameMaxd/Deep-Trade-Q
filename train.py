@@ -290,32 +290,44 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         # Final inference on training set
         print("=== Final Training Inference TD3 ===")
         logging.info("=== Final Training Inference TD3 ===")
-        env_train = TradingEnv(raw_train_prices, raw_train_volumes, window_size)
+        # Final inference environment: disable costs and risk shaping for clear profit calc
+        env_train = TradingEnv(
+            raw_train_prices, raw_train_volumes, window_size,
+            commission=0.0, max_inventory=1000, carry_cost=0.0,
+            min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
+            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
+        )
         obs, _ = env_train.reset(); done=False; total_profit_train=0.0; trades_train=0
         while not done:
             action, _ = model.predict(obs, deterministic=True)
             if action != 0: trades_train += 1
             obs, reward, done, _, _ = env_train.step(action); total_profit_train += reward
         if getattr(env_train, 'inventory', None):
-            final_price = env_train.prices[env_train.current_step]
-            for bp in env_train.inventory:
-                total_profit_train += final_price - bp
+            final_price = float(env_train.prices[env_train.current_step])
+            for bought_price, qty in env_train.inventory:
+                total_profit_train += (final_price - bought_price) * qty
             env_train.inventory.clear()
         print(f'Training Total Profit: {float(total_profit_train):.4f}, Trades: {trades_train}')
         logging.info(f'Training Total Profit: {float(total_profit_train):.4f}, Trades: {trades_train}')
         # Final inference on validation set
         print("=== Final Validation Inference TD3 ===")
         logging.info("=== Final Validation Inference TD3 ===")
-        env_val = TradingEnv(raw_val_prices, raw_val_volumes, window_size)
+        # Validation environment: same normalization, no costs/risk shaping
+        env_val = TradingEnv(
+            raw_val_prices, raw_val_volumes, window_size,
+            commission=0.0, max_inventory=1000, carry_cost=0.0,
+            min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
+            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
+        )
         obs, _ = env_val.reset(); done=False; total_profit=0.0; trades_val=0
         while not done:
             action, _ = model.predict(obs, deterministic=True)
             if action != 0: trades_val += 1
             obs, reward, done, _, _ = env_val.step(action); total_profit += reward
         if getattr(env_val, 'inventory', None):
-            final_price = env_val.prices[env_val.current_step]
-            for bp in env_val.inventory:
-                total_profit += final_price - bp
+            final_price = float(env_val.prices[env_val.current_step])
+            for bought_price, qty in env_val.inventory:
+                total_profit += (final_price - bought_price) * qty
             env_val.inventory.clear()
         print(f'Validation Total Profit: {float(total_profit):.4f}, Trades: {trades_val}')
         logging.info(f'Validation Total Profit: {float(total_profit):.4f}, Trades: {trades_val}')

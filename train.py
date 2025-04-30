@@ -145,7 +145,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                 self.eval_freq = eval_freq
                 self.n_eval_episodes = n_eval_episodes
                 self.patience = patience
-                self.best_sharpe = -float('inf')
+                self.best_val_profit = -float('inf')
                 self.no_improve = 0
                 self.save_path = save_path
 
@@ -154,7 +154,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                     # Train evaluation (with noise)
                     tp, tr, ttrades = [], [], []
                     for i in range(self.n_eval_episodes):
-                        obs, _ = self.train_env.reset(); done=False; p_t=0.0; r_t=0.0; trade_t=0; steps=0
+                        obs, _ = self.train_env.reset(random_start=True); done=False; p_t=0.0; r_t=0.0; trade_t=0; steps=0
                         buy_t = sell_t = hold_t = 0
                         while not done:
                             act, _ = self.model.predict(obs, deterministic=True)
@@ -187,7 +187,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                     # Validation evaluation (with noise)
                     vp, vr, vtrades = [], [], []
                     for i in range(self.n_eval_episodes):
-                        obs, _ = self.eval_env.reset(); done=False; p_v=0.0; r_v=0.0; trade_v=0; steps=0
+                        obs, _ = self.eval_env.reset(random_start=True); done=False; p_v=0.0; r_v=0.0; trade_v=0; steps=0
                         buy_v = sell_v = hold_v = 0
                         while not done:
                             act, _ = self.model.predict(obs, deterministic=True)
@@ -240,8 +240,10 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                            f"TrainProfit {mpt:.6f}, ValProfit {mpv:.6f}, Sharpe {sharpe:.6f}, "
                            f"AvgReward {mrv:.6f}, TradesTrain {mtt:.1f}, TradesVal {mv:.1f}")
                     print(msg); logging.info(msg)
-                    if sharpe > self.best_sharpe:
-                        self.best_sharpe = sharpe; self.no_improve = 0
+                    # Early stopping based on average validation profit
+                    if mpv > self.best_val_profit:
+                        self.best_val_profit = mpv
+                        self.no_improve = 0
                         self.model.save(self.save_path + '_best')
                     else:
                         self.no_improve += 1
@@ -282,7 +284,37 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         # Setup callbacks: progress bar and evaluation with early stopping
         save_path = f'{td3_save_name}_{os.path.splitext(stock)[0]}'
         tqdm_cb = TqdmCallback(td3_timesteps)
-        eval_cb = EvalCallbackTD3(train_eval_env, eval_env, eval_freq=5000, n_eval_episodes=3, patience=3, save_path=save_path)
+        # Increase evaluation stability: more episodes and higher patience for early stopping
+        eval_cb = EvalCallbackTD3(
+            train_eval_env,
+            eval_env,
+            eval_freq=5000,
+            n_eval_episodes=10,  # ещё больше эпизодов для стабильности
+            patience=15,         # дольше ждём улучшения
+            save_path=save_path
+        )
+
+        # ===== ЭТАП 1: обучение на чистом профите (без комиссий и рисков)
+        # (train_eval_env и eval_env уже без комиссий и risk shaping)
+        # ===== ЭТАП 2: фаинтюн с рисками (опционально, пока закомментировано)
+        # risk_train_env = TradingEnv(
+        #     raw_train_prices, raw_train_volumes, window_size,
+        #     commission=0.001, max_inventory=8, carry_cost=0.0001,
+        #     min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
+        #     risk_lambda=0.1, drawdown_lambda=0.1, dual_phase=True
+        # )
+        # risk_eval_env = TradingEnv(
+        #     raw_val_prices, raw_val_volumes, window_size,
+        #     commission=0.001, max_inventory=8, carry_cost=0.0001,
+        #     min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
+        #     risk_lambda=0.1, drawdown_lambda=0.1, dual_phase=True
+        # )
+        # risk_cb = EvalCallbackTD3(
+        #     risk_train_env, risk_eval_env, eval_freq=5000,
+        #     n_eval_episodes=10, patience=15, save_path=save_path+"_risk"
+        # )
+        # model.learn(total_timesteps=td3_timesteps//2, callback=[tqdm_cb, risk_cb])
+
         # Train with callbacks, allow interruption
         try:
             model.learn(total_timesteps=td3_timesteps, callback=[tqdm_cb, eval_cb])

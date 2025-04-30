@@ -35,9 +35,12 @@ class TradingEnv(gym.Env):
             shape=(self.state_size,), dtype=np.float32
         )
 
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None, options=None, random_start=False):
         super().reset(seed=seed)
-        self.current_step = 0
+        if random_start:
+            self.current_step = np.random.randint(0, len(self.prices) - self.window_size - 1)
+        else:
+            self.current_step = 0
         self.inventory = []
         self.total_profit = 0.0
         # initialize risk tracking

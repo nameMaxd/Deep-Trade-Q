@@ -4,12 +4,12 @@ from collections import deque
 
 import numpy as np
 import tensorflow as tf
-import keras.backend as K
+from tensorflow.keras import backend as K
 
-from keras.models import Sequential
-from keras.models import load_model, clone_model
-from keras.layers import Dense
-from keras.optimizers import Adam
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.models import load_model, clone_model
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.optimizers import Adam
 from trading_bot.utils import WINDOW_SIZE
 
 
@@ -73,9 +73,9 @@ class Agent:
 
     def _model(self):
         """Создает модель: Dense или LSTM (выбор через self.model_type)"""
-        from keras.layers import Dropout, BatchNormalization, LSTM, Dense, Input, Reshape
-        from keras.regularizers import l2
-        from keras.models import Sequential
+        from tensorflow.keras.layers import Dropout, BatchNormalization, LSTM, Dense, Input, Reshape
+        from tensorflow.keras.regularizers import l2
+        from tensorflow.keras.models import Sequential
         if hasattr(self, 'model_type') and self.model_type == 'lstm':
             # LSTM-архитектура, shape (timesteps, features)
             model = Sequential()

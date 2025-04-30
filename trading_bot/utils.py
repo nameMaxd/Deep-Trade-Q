@@ -73,6 +73,23 @@ def fillna_inf(arr):
         arr[mask] = np.nanmean(arr[~mask]) if np.any(~mask) else 0
     return arr
 
+
+def omega(profits, risk_free_rate=0.0):
+    """
+    Omega Ratio: отношение суммы доходностей выше risk_free_rate к сумме абсолютных доходностей ниже risk_free_rate.
+    profits: массив доходностей (np.array или list)
+    risk_free_rate: пороговое значение (обычно 0.0)
+    """
+    eps = 1e-8
+    if len(profits) == 0:
+        return 0.0
+    profits = np.array(profits)
+    above = profits[profits > risk_free_rate] - risk_free_rate
+    below = risk_free_rate - profits[profits <= risk_free_rate]
+    num = np.sum(above)
+    denom = np.sum(below) + eps
+    return float(num / denom)
+
 def get_stock_data(stock_file, norm_type="minmax"):
     """Reads stock data from csv file. norm_type: minmax, zscore, log-returns. Заполняет NaN/inf скользящим средним."""
     import os

@@ -6,7 +6,7 @@ from .ops import get_state
 class TradingEnv(gym.Env):
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self, prices, volumes, window_size, commission=0.001, max_inventory=8, carry_cost=0.0001, min_trade_value=10.0, min_v=None, max_v=None, risk_lambda=0.1, drawdown_lambda=0.1, dual_phase=True):
+    def __init__(self, prices, volumes, window_size=47, commission=0.001, max_inventory=8, carry_cost=0.0001, min_trade_value=10.0, min_v=None, max_v=None, risk_lambda=0.1, drawdown_lambda=0.1, dual_phase=True):
         super().__init__()
         self.prices = prices
         self.volumes = volumes
@@ -18,7 +18,7 @@ class TradingEnv(gym.Env):
         self.global_max_v = max_v
         self.window_size = window_size
         # features: window_size-1 sigmoids + SMA, EMA, RSI, vol_ratio + momentum, volatility
-        self.state_size = window_size - 1 + 6 + 2  # +2 inventory features
+        self.state_size = window_size - 1 + 6  # без +2, inventory добавляется отдельно!
         # transaction commission fraction
         self.commission = commission
         # minimum trade value threshold (in $) to open a position
@@ -31,7 +31,8 @@ class TradingEnv(gym.Env):
             low=np.array([0.0]), high=np.array([2.0]), shape=(1,), dtype=np.float32
         )
         # observation includes inventory features, unbounded
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.state_size,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.state_size + 2,), dtype=np.float32)
+        print(f"[env] window_size={window_size} state_size={self.state_size} obs_space={self.observation_space.shape}")
 
     def reset(self, *args, random_start=False, **kwargs):
         # Accept arbitrary seed/options args and handle random_start correctly
@@ -71,7 +72,7 @@ class TradingEnv(gym.Env):
             list(zip(self.prices, self.volumes)),
             self.current_step, self.window_size,
             min_v=self.min_v, max_v=self.max_v
-        )[0]
+        )
         # extend state with inventory features (initially zero)
         inv_count_norm = 0.0
         avg_entry_ratio = 0.0
@@ -85,7 +86,11 @@ class TradingEnv(gym.Env):
         else:
             a = float(action)
         action = int(np.clip(np.round(a), 0, 2))
-        price = float(self.prices[self.current_step])
+        
+        # Проверяем, что индекс не выходит за границы массива
+        safe_step = min(self.current_step, len(self.prices) - 1)
+        price = float(self.prices[safe_step])
+        
         # initialize reward: penalize hold, apply commission on buy/sell, enforce limits
         reward = 0.0
         if action == 0:
@@ -109,30 +114,39 @@ class TradingEnv(gym.Env):
                 self.total_profit += net
             else:
                 reward -= self.hold_penalty
+        
         # carry cost per item in inventory
         reward -= self.carry_cost * len(self.inventory)
+        
         # mark-to-market reward for inventory due to price change
         if self.current_step < len(self.prices) - 1 and self.inventory:
-            next_price = float(self.prices[self.current_step + 1])
+            next_step = min(self.current_step + 1, len(self.prices) - 1)
+            next_price = float(self.prices[next_step])
             mtm = sum((next_price - price) * qty for price, qty in self.inventory)
             reward += mtm
+            
         # update risk metrics
         self.rewards.append(reward)
         self.equity.append(self.equity[-1] + reward)
         self.max_equity = max(self.max_equity, self.equity[-1])
         vol = float(np.std(self.rewards)) if len(self.rewards) > 1 else 0.0
         drawdown = float(self.max_equity - self.equity[-1])
+        
         if self.dual_phase and self.phase == 'exploration':
             # exploration phase: focus on risk minimization
             reward = - self.risk_lambda * vol - self.drawdown_lambda * drawdown
         else:
             # exploitation phase or no dual phase: profit minus risk penalties
             reward = reward - self.risk_lambda * vol - self.drawdown_lambda * drawdown
+            
         self.current_step += 1
         done = self.current_step >= len(self.prices) - 1
+        
         # Liquidate remaining inventory at end of episode (market close)
         if self.current_step >= len(self.prices) - 2 and self.inventory:
-            final_price = float(self.prices[self.current_step])
+            # Проверяем, что индекс не выходит за границы массива
+            safe_step = min(self.current_step, len(self.prices) - 1)
+            final_price = float(self.prices[safe_step])
             for bought_price, qty in self.inventory:
                 profit = (final_price - bought_price) * qty
                 cost = self.commission * (final_price * qty + bought_price * qty)
@@ -140,23 +154,31 @@ class TradingEnv(gym.Env):
                 reward += net
                 self.total_profit += net
             self.inventory = []
-        # get state array
+            
+        # get state array - используем безопасный индекс
+        safe_step = min(self.current_step, len(self.prices) - 1)
         base_state = get_state(
             list(zip(self.prices, self.volumes)),
-            self.current_step, self.window_size,
+            safe_step, self.window_size,
             min_v=self.min_v, max_v=self.max_v
-        )[0]
+        )
+        
         # extend state with inventory info
         inv_count_norm = len(self.inventory) / self.max_inventory
         if self.inventory:
             total_qty = sum(qty for _, qty in self.inventory)
             avg_price = sum(bp * qty for bp, qty in self.inventory) / total_qty
-            avg_entry_ratio = (float(self.prices[self.current_step]) - avg_price) / avg_price
+            # Используем безопасный индекс для текущего шага
+            safe_step = min(self.current_step, len(self.prices) - 1)
+            current_price = float(self.prices[safe_step])
+            avg_entry_ratio = (current_price - avg_price) / avg_price
             avg_entry_ratio = np.clip(avg_entry_ratio, -1.0, 1.0)
         else:
             avg_entry_ratio = 0.0
+            
         state_ext = np.concatenate([base_state, [inv_count_norm, avg_entry_ratio]]).astype(np.float32)
         obs = state_ext
+        
         # info теперь содержит реальное действие
         info = {'real_action': action}
         return obs, reward, done, False, info

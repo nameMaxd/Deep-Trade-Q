@@ -28,82 +28,148 @@ Options:
   --td3-timesteps=<td3-timesteps>    Total timesteps for TD3 training. [default: 100000]
   --td3-noise-sigma=<td3-noise-sigma>  # Sigma для TD3 action noise (по умолчанию 1.0)
   --td3-save-name=<td3-save-name>    Filename to save TD3 model (no extension). [default: td3_model]
+  --force-cpu                       Force using CPU instead of GPU for TensorFlow and PyTorch.
 
 """
 
 import logging
 import coloredlogs
 import os
-import tensorflow as tf
-from tensorflow.keras import mixed_precision
-mixed_precision.set_global_policy('mixed_float16')
-import io
-import re
-import numpy as np
+import sys
+import traceback
 
-from docopt import docopt
+# Включаем отладочный вывод
+print("=== Запуск скрипта train.py ===")
+print(f"Аргументы: {sys.argv}")
+print(f"Текущая директория: {os.getcwd()}")
 
-from trading_bot.agent import Agent
-from trading_bot.methods import train_model, evaluate_model
-from trading_bot.utils import (
-    WINDOW_SIZE,
-    minmax_normalize,
-    format_currency,
-    format_position,
-    show_train_result,
-    switch_k_backend_device
-)
+# Проверяем наличие файла данных
+if len(sys.argv) > 1:
+    data_file = sys.argv[1]
+    if os.path.exists(data_file):
+        print(f"Файл данных найден: {data_file}")
+    else:
+        data_path = os.path.join('data', data_file)
+        if os.path.exists(data_path):
+            print(f"Файл данных найден в подкаталоге data: {data_path}")
+        else:
+            print(f"ОШИБКА: Файл данных не найден ни в {data_file}, ни в {data_path}")
 
-# Configure multi-core usage
-os.environ['OMP_NUM_THREADS'] = str(os.cpu_count())
-os.environ['MKL_NUM_THREADS'] = str(os.cpu_count())
-tf.config.threading.set_intra_op_parallelism_threads(os.cpu_count())
-tf.config.threading.set_inter_op_parallelism_threads(os.cpu_count())
+# Парсим аргументы перед импортом TensorFlow и PyTorch
+force_cpu = '--force-cpu' in sys.argv
+if force_cpu:
+    print("Принудительно используем CPU вместо GPU")
+    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'  # Отключаем GPU для TensorFlow
 
-def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
+try:
+    import tensorflow as tf
+    from tensorflow.keras import mixed_precision
+    
+    # Применяем mixed_precision только если не force_cpu
+    if not force_cpu:
+        mixed_precision.set_global_policy('mixed_float16')
+    print("TensorFlow успешно загружен")
+except Exception as e:
+    print(f"Ошибка при загрузке TensorFlow: {e}")
+    traceback.print_exc()
+
+try:
+    import io
+    import re
+    import numpy as np
+    from docopt import docopt
+    import pandas as pd
+    import logging
+    from tqdm import tqdm
+    import matplotlib.pyplot as plt
+    print("Базовые библиотеки загружены")
+    
+    # Настройка PyTorch для использования CPU
+    import torch
+    if force_cpu:
+        torch.set_num_threads(os.cpu_count())  # Максимально эффективно используем CPU
+    print("PyTorch успешно загружен")
+    
+    # Загружаем Stable-Baselines3 и другие библиотеки
+    from stable_baselines3 import TD3
+    from stable_baselines3.common.noise import NormalActionNoise
+    from stable_baselines3.common.monitor import Monitor
+    from stable_baselines3.common.callbacks import BaseCallback
+    print("Stable-Baselines3 успешно загружен")
+    
+    # Загружаем модули проекта
+    from trading_bot.env import TradingEnv
+    from trading_bot.ops import get_state
+    from trading_bot.methods import train_model, evaluate_model
+    from trading_bot.agent import Agent  # Добавляем импорт класса Agent
+    print("Модули проекта успешно загружены")
+except Exception as e:
+    print(f"Ошибка при загрузке библиотек: {e}")
+    traceback.print_exc()
+    sys.exit(1)
+try:
+    from trading_bot.utils import (
+        WINDOW_SIZE,
+        minmax_normalize,
+        format_currency,
+        format_position,
+        show_train_result,
+        switch_k_backend_device
+    )
+    print("Утилиты успешно загружены")
+    
+    # Configure multi-core usage
+    os.environ['OMP_NUM_THREADS'] = str(os.cpu_count())
+    os.environ['MKL_NUM_THREADS'] = str(os.cpu_count())
+    tf.config.threading.set_intra_op_parallelism_threads(os.cpu_count())
+    tf.config.threading.set_inter_op_parallelism_threads(os.cpu_count())
+    print("Многопоточность настроена")
+except Exception as e:
+    print(f"Ошибка при загрузке утилит или настройке многопоточности: {e}")
+    traceback.print_exc()
+    sys.exit(1)
+
+def save_window_size(model_path, window_size):
+    base = os.path.splitext(model_path)[0]
+    fname = base + ".window_size.txt"
+    with open(fname, "w") as f:
+        f.write(str(window_size))
+
+def main(stock, window_size=47, batch_size=32, ep_count=50,
          strategy="t-dqn", model_name=None, pretrained=False,
-         debug=False, model_type='dense', target_update=100,
+         debug=False, target_update=100,
          td3_timesteps=100000, td3_noise_sigma=1.0, td3_save_name='td3_model'):
     """ Finetune the stock trading bot on a large interval (2019-01-01 — 2024-06-30).
     Logs each epoch to train_finetune.log, uses tqdm for progress.
     """
-    import pandas as pd
-    import os
-    import logging
-    from trading_bot.ops import get_state
-    from tqdm import tqdm
+    print("=== ЗАПУСК ФУНКЦИИ MAIN ===")
+    print(f"Полученные параметры:")
+    print(f"  stock={stock}")
+    print(f"  window_size={window_size}")
+    print(f"  strategy={strategy}")
+    print(f"  td3_timesteps={td3_timesteps}")
 
     # Настраиваем логирование в файл
     logging.basicConfig(filename="train_finetune.log", filemode="w", level=logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
     print("Лог обучения будет писаться в train_finetune.log")
 
-    # Загружаем данные 2019-01-01 — 2024-06-30
-    # Clean CSV: keep only header and lines starting with date
-    pattern = re.compile(r'\d{4}-\d{2}-\d{2}')
-    raw_lines = []
-    with open(stock, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith('Date,'):
-                raw_lines.append(line)
-            else:
-                m = pattern.search(line)
-                if m:
-                    raw_lines.append(line[m.start():])
-    df = pd.read_csv(io.StringIO('\n'.join(raw_lines)))
-    df["Date"] = pd.to_datetime(df["Date"])
-    df = df.sort_values("Date").reset_index(drop=True)
-    # Split into train (2015–2023) and validation (2024-01-01–2024-06-30)
-    train_df = df[(df["Date"] >= "2015-01-01") & (df["Date"] < "2024-01-01")]
-    val_df = df[(df["Date"] >= "2024-01-01") & (df["Date"] <= "2024-06-30")]
+    # ЯВНОЕ разделение train/val: никаких дат, никаких пересечений!
+    train_path = stock  # путь к train-файлу передаётся аргументом
+    val_path = os.path.join(os.path.dirname(__file__), 'data', 'GOOG_2024-07_2025-04.csv')
+    # train
+    train_df = pd.read_csv(train_path)
+    train_df["Date"] = pd.to_datetime(train_df["Date"])
+    train_df = train_df.sort_values("Date").reset_index(drop=True)
     raw_train_prices = train_df["Adj Close"].values
     raw_train_volumes = train_df["Volume"].values
-    # normalize price and volume and combine
     price_norm = list(minmax_normalize(raw_train_prices))
     vol_norm = list(minmax_normalize(raw_train_volumes))
     train_data = list(zip(price_norm, vol_norm))
-    # prepare validation data and normalize separately
+    # val
+    val_df = pd.read_csv(val_path)
+    val_df["Date"] = pd.to_datetime(val_df["Date"])
+    val_df = val_df.sort_values("Date").reset_index(drop=True)
     raw_val_prices = val_df["Adj Close"].values
     raw_val_volumes = val_df["Volume"].values
     val_price = list(minmax_normalize(raw_val_prices))
@@ -121,7 +187,6 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         tb_dir = os.path.join(plots_dir, 'tensorboard')
         os.makedirs(monitor_dir, exist_ok=True)
         os.makedirs(tb_dir, exist_ok=True)
-        import numpy as np
         from stable_baselines3 import TD3
         from stable_baselines3.common.noise import NormalActionNoise
         from stable_baselines3.common.monitor import Monitor
@@ -150,21 +215,42 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         val_prices = val_df['Adj Close'].values
         val_vols = val_df['Volume'].values
 
-        train_env = TradingEnv(train_prices, train_vols, window_size)
-        val_env = TradingEnv(val_prices, val_vols, window_size)
-        # Wrap training env with Monitor for logging rewards
-        train_env = Monitor(train_env, monitor_dir)
+        # Создаем окружения для обучения и валидации
+        train_env_raw = TradingEnv(train_prices, train_vols, window_size)
+        val_env_raw = TradingEnv(val_prices, val_vols, window_size)
+        
+        # Сбрасываем окружения перед использованием
+        train_env_raw.reset()
+        val_env_raw.reset()
+        
+        # Обертываем в Monitor для логирования наград
+        train_env_monitored = Monitor(train_env_raw, monitor_dir)
+        train_env_monitored.reset()
+        
+        # Дополнительно обернем в DummyVecEnv для совместимости с Stable-Baselines3
+        from stable_baselines3.common.vec_env import DummyVecEnv
+        train_env = DummyVecEnv([lambda: train_env_monitored])
+        val_env = DummyVecEnv([lambda: val_env_raw])
+        
+        # Сбрасываем векторизованные окружения
+        train_env.reset()
+        val_env.reset()
+        
         n_actions = train_env.action_space.shape[0]
         action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=td3_noise_sigma * np.ones(n_actions))
+        
         # Initialize TD3 with TensorBoard logging
         model = TD3('MlpPolicy', train_env, action_noise=action_noise, verbose=1,
                     tensorboard_log=tb_dir)
-        # attach visualization callback
-        visual_cb = VisualizeCallback(train_env, val_env, model, total_timesteps=td3_timesteps)
+        
+        # Передаем оригинальные окружения для визуализации
+        visual_cb = VisualizeCallback(train_env, val_env, model, train_env_raw, val_env_raw, total_timesteps=td3_timesteps)
+        
+        # Запускаем обучение
+        print("Запуск обучения TD3...")
         model.learn(total_timesteps=td3_timesteps, callback=visual_cb)
         model.save(f"{td3_save_name}")
         # Plot training reward progression from Monitor logs
-        import pandas as pd
         import matplotlib.pyplot as plt
         df = pd.read_csv(os.path.join(monitor_dir, 'monitor.csv'), comment='#')
         plt.figure(figsize=(8,4))
@@ -179,11 +265,42 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         return
     # если выбран TD3, запускаем Stable-Baselines3 TD3
     if strategy.lower() == 'td3':
+        # --- ВОССТАНОВЛЕНИЕ: подготовка pretrained/model_name и финальный инференс ---
+        import glob
+        if pretrained:
+            # find latest .h5 in models/ if no specific file
+            if not model_name or not model_name.endswith('.h5'):
+                h5_files = glob.glob(os.path.join('models', '*.h5'))
+                if not h5_files:
+                    logging.warning('No pretrained .h5 found in models/, training from scratch.')
+                    pretrained = False
+                    model_name = None
+                else:
+                    h5_files.sort(key=os.path.getmtime, reverse=True)
+                    model_name = os.path.basename(h5_files[0])
+            else:
+                # keep only filename
+                model_name = os.path.basename(model_name)
+
+        # Initialize agent with dynamic window_size (state_size computed internally)
+        agent = Agent(window_size, strategy=strategy, reset_every=target_update, pretrained=pretrained, model_name=model_name)
+        agent.model_type = model_type
+        if model_type == 'lstm' and model_name and not model_name.endswith('_LSTM'):
+            model_name += '_LSTM'
+            agent.model_name = model_name
+
+        best_val_profit = None
+        best_val_epoch = None
+        no_improve = 0
+        strategies = strategy.split(",")
+        for strat in strategies:
+            agent.strategy = strat
+        # --- КОНЕЦ ВОССТАНОВЛЕНИЯ ---
+
         from trading_bot.env import TradingEnv
         from stable_baselines3 import TD3
         from stable_baselines3.common.noise import NormalActionNoise
         from stable_baselines3.common.callbacks import BaseCallback
-        from tqdm import tqdm
         import torch
 
         # Progress bar for TD3
@@ -293,86 +410,129 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                     mpt, mrt, mtt = np.mean(tp), np.mean(tr), np.mean(ttrades)
                     mpv, mrv, mv = np.mean(vp), np.mean(vr), np.mean(vtrades)
                     num_val_trades = mv
-                    # Compute Sharpe ratio across episodes; avoid huge values when returns constant
+                    # === Новые метрики: Sharpe, max drawdown, CVaR, Omega, композитный score ===
+                    from trading_bot.utils import omega
                     if len(vp) > 1:
                         std_vp = np.std(vp, ddof=1)
                         sharpe = mpv / std_vp if std_vp > 0 else 0.0
                     else:
                         sharpe = 0.0
-                    # Report with high precision
-                    msg = (f"[Eval] Step {self.num_timesteps}: "
-                           f"TrainProfit {mpt:.6f}, ValProfit {mpv:.6f}, Sharpe {sharpe:.6f}, "
-                           f"AvgReward {mrv:.6f}, TradesTrain {mtt:.1f}, TradesVal {mv:.1f}")
-                    print(msg); logging.info(msg)
-                    # Early stopping based on average validation profit
+                    train_max_dd = max_drawdown(tp)
+                    val_max_dd = max_drawdown(vp)
+                    train_cvar = cvar(tp)
+                    val_cvar = cvar(vp)
+                    train_omega = omega(tp)
+                    val_omega = omega(vp)
+                    alpha, beta, gamma, delta = 0.5, 0.2, 0.2, 0.2
+                    val_score = mpv - alpha*std_vp - beta*abs(worst_val) - gamma*val_max_dd - delta*val_cvar
+                    train_score = mpt - alpha*np.std(tp, ddof=1) - beta*abs(worst_train) - gamma*train_max_dd - delta*train_cvar
+                    # Логируем результаты
+                    logging.info(f"[Eval] Step {self.num_timesteps}: TrainProfit {mpt:.6f}, ValProfit {mpv:.6f}, Sharpe {sharpe:.6f}, AvgReward {mrv:.6f}, TradesTrain {mtt}, TradesVal {mv}")
+                    logging.info(f"[Eval] MaxDD train {train_max_dd:.6f}, val {val_max_dd:.6f}; CVaR train {train_cvar:.6f}, val {val_cvar:.6f}; Omega train {train_omega:.6f}, val {val_omega:.6f}")
+                    # early stopping по профиту
                     if mpv > self.best_val_profit:
                         self.best_val_profit = mpv
                         self.no_improve = 0
-                        self.model.save(self.save_path + '_best')
+                        self.model.save(self.save_path)
+                        logging.info(f"[Eval] Model improved and saved to {self.save_path}")
                     else:
                         self.no_improve += 1
-                        if self.no_improve >= self.patience:
-                            print(f"Early stopping at step {self.num_timesteps}")
-                            return False
-                return True
-
-        # создаём среды
-        env = TradingEnv(raw_train_prices, raw_train_volumes, window_size, dual_phase=False)
-        # enforce same normalization bounds for train and val envs
-        train_eval_env = TradingEnv(
-            raw_train_prices, raw_train_volumes, window_size,
-            commission=0.0, max_inventory=1000, carry_cost=0.0,
-            min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
-            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
-        )
-        eval_env = TradingEnv(
-            raw_val_prices, raw_val_volumes, window_size,
-            commission=0.0, max_inventory=1000, carry_cost=0.0,
-            min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
-            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
-        )
-        # continuous action dim for TD3 (shape of Box)
-        n_actions = env.action_space.shape[0]
-        action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=td3_noise_sigma * np.ones(n_actions))
-        # Configure TD3 with tuned hyperparameters and deeper MLP architecture
-        policy_kwargs = dict(net_arch=[256, 256, 128])  # расширенная сеть
-        model = TD3(
-            'MlpPolicy',
-            env,
-            policy_kwargs=policy_kwargs,
-            learning_rate=3e-4,
-            batch_size=256,
-            buffer_size=1_000_000,
-            action_noise=action_noise
-        )
-        # ===== L2 Regularization (Weight Decay) =====
-        # Устанавливаем небольшой weight decay для actor и critic оптимизаторов
-        for optimizer in (model.actor.optimizer, model.critic.optimizer):
-            for param_group in optimizer.param_groups:
-                param_group['weight_decay'] = 1e-5
-        # Setup callbacks: progress bar and evaluation with early stopping
-        save_path = f'{td3_save_name}_{os.path.splitext(stock)[0]}'
-        tqdm_cb = TqdmCallback(td3_timesteps)
-        # Increase evaluation stability: more episodes and higher patience for early stopping
-        eval_cb = EvalCallbackTD3(
-            train_eval_env,
-            eval_env,
-            eval_freq=5000,
-            n_eval_episodes=10,  # ещё больше эпизодов для стабильности
-            patience=15,         # дольше ждём улучшения
-            save_path=save_path
-        )
-
-        # ===== ЭТАП 1: обучение на чистом профите (без комиссий и рисков)
-        # (train_eval_env и eval_env уже без комиссий и risk shaping)
-        # ===== ЭТАП 2: фаинтюн с рисками (опционально, пока закомментировано)
-        # risk_train_env = TradingEnv(
-        #     raw_train_prices, raw_train_volumes, window_size,
-        #     commission=0.001, max_inventory=8, carry_cost=0.0001,
-        #     min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
-        #     risk_lambda=0.1, drawdown_lambda=0.1, dual_phase=True
-        # )
-        # risk_eval_env = TradingEnv(
+                        logging.info(f"[Eval] No improvement for {self.no_improve} evals")
+                    if self.no_improve >= self.patience:
+                        logging.info(f"[Eval] Early stopping triggered at step {self.num_timesteps}")
+                        return False
+                    return True
+                env = TradingEnv(raw_train_prices, raw_train_volumes, window_size, dual_phase=False)
+                # enforce same normalization bounds for train and val envs
+                train_eval_env = TradingEnv(
+                    raw_train_prices, raw_train_volumes, window_size,
+                    commission=0.0, max_inventory=1000, carry_cost=0.0,
+                    min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
+                    risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
+                )
+                eval_env = TradingEnv(
+                    raw_val_prices, raw_val_volumes, window_size,
+                    commission=0.0, max_inventory=1000, carry_cost=0.0,
+                    min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
+                    risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
+                )
+                # TD3: policy, noise, model, регуляризация, callbacks
+                n_actions = env.action_space.shape[0]
+                action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=td3_noise_sigma * np.ones(n_actions))
+                policy_kwargs = dict(net_arch=[256, 256, 128])
+                model = TD3(
+                    'MlpPolicy',
+                    env,
+                    policy_kwargs=policy_kwargs,
+                    learning_rate=3e-4,
+                    batch_size=256,
+                    buffer_size=1_000_000,
+                    action_noise=action_noise
+                )
+                for optimizer in (model.actor.optimizer, model.critic.optimizer):
+                    for param_group in optimizer.param_groups:
+                        param_group['weight_decay'] = 1e-5
+                save_path = f'{td3_save_name}_{os.path.splitext(stock)[0]}'
+                tqdm_cb = TqdmCallback(td3_timesteps)
+                eval_cb = EvalCallbackTD3(
+                    train_eval_env,
+                    eval_env,
+                    eval_freq=5000,
+                    n_eval_episodes=10,
+                    patience=15,
+                    save_path=save_path
+                )
+                model.learn(total_timesteps=td3_timesteps, callback=[tqdm_cb, eval_cb])
+                # --- Финальный инференс на трейне ---
+                print("=== Final Training Inference TD3 ===")
+                logging.info("=== Final Training Inference TD3 ===")
+                env_train = TradingEnv(
+                    raw_train_prices, raw_train_volumes, window_size,
+                    commission=0.0, max_inventory=1000, carry_cost=0.0,
+                    min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
+                    risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
+                )
+                obs, _ = env_train.reset()
+                done = False
+                total_profit_train = 0.0
+                trades_train = 0
+                while not done:
+                    action, _ = model.predict(obs, deterministic=True)
+                    if action != 0:
+                        trades_train += 1
+                    obs, reward, done, _, _ = env_train.step(action)
+                    total_profit_train += reward
+                if getattr(env_train, 'inventory', None):
+                    final_price = float(env_train.prices[env_train.current_step])
+                    for bought_price, qty in env_train.inventory:
+                        total_profit_train += (final_price - bought_price) * qty
+                    env_train.inventory.clear()
+                print(f'Training Total Profit: {float(total_profit_train):.4f}, Trades: {trades_train}')
+                logging.info(f'Training Total Profit: {float(total_profit_train):.4f}, Trades: {trades_train}')
+                # --- Финальный инференс по валидации после обучения ---
+                env_val = TradingEnv(
+                    raw_val_prices, raw_val_volumes, window_size,
+                    commission=0.0, max_inventory=1000, carry_cost=0.0,
+                    min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
+                    risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
+                )
+                obs, _ = env_val.reset()
+                done = False
+                total_profit = 0.0
+                trades_val = 0
+                while not done:
+                    action, _ = model.predict(obs, deterministic=True)
+                    if action != 0:
+                        trades_val += 1
+                    obs, reward, done, _, _ = env_val.step(action)
+                    total_profit += reward
+                if getattr(env_val, 'inventory', None):
+                    final_price = float(env_val.prices[env_val.current_step])
+                    for bought_price, qty in env_val.inventory:
+                        total_profit += (final_price - bought_price) * qty
+                    env_val.inventory.clear()
+                print(f'Validation Total Profit: {float(total_profit):.4f}, Trades: {trades_val}')
+                logging.info(f'Validation Total Profit: {float(total_profit):.4f}, Trades: {trades_val}')
         #     raw_val_prices, raw_val_volumes, window_size,
         #     commission=0.001, max_inventory=8, carry_cost=0.0001,
         #     min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
@@ -384,88 +544,6 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         # )
         # model.learn(total_timesteps=td3_timesteps//2, callback=[tqdm_cb, risk_cb])
 
-        # Train with callbacks, allow interruption
-        try:
-            model.learn(total_timesteps=td3_timesteps, callback=[tqdm_cb, eval_cb])
-        except KeyboardInterrupt:
-            print("Training interrupted by user, proceeding to final inference...")
-        # Save final model
-        model.save(f'{td3_save_name}_{os.path.splitext(stock)[0]}')
-        # Final inference on training set
-        print("=== Final Training Inference TD3 ===")
-        logging.info("=== Final Training Inference TD3 ===")
-        # Final inference environment: disable costs and risk shaping for clear profit calc
-        env_train = TradingEnv(
-            raw_train_prices, raw_train_volumes, window_size,
-            commission=0.0, max_inventory=1000, carry_cost=0.0,
-            min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
-            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
-        )
-        obs, _ = env_train.reset(); done=False; total_profit_train=0.0; trades_train=0
-        while not done:
-            action, _ = model.predict(obs, deterministic=True)
-            if action != 0: trades_train += 1
-            obs, reward, done, _, _ = env_train.step(action); total_profit_train += reward
-        if getattr(env_train, 'inventory', None):
-            final_price = float(env_train.prices[env_train.current_step])
-            for bought_price, qty in env_train.inventory:
-                total_profit_train += (final_price - bought_price) * qty
-            env_train.inventory.clear()
-        print(f'Training Total Profit: {float(total_profit_train):.4f}, Trades: {trades_train}')
-        logging.info(f'Training Total Profit: {float(total_profit_train):.4f}, Trades: {trades_train}')
-        # Final inference on validation set
-        print("=== Final Validation Inference TD3 ===")
-        logging.info("=== Final Validation Inference TD3 ===")
-        # Validation environment: same normalization, no costs/risk shaping
-        env_val = TradingEnv(
-            raw_val_prices, raw_val_volumes, window_size,
-            commission=0.0, max_inventory=1000, carry_cost=0.0,
-            min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
-            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
-        )
-        obs, _ = env_val.reset(); done=False; total_profit=0.0; trades_val=0
-        while not done:
-            action, _ = model.predict(obs, deterministic=True)
-            if action != 0: trades_val += 1
-            obs, reward, done, _, _ = env_val.step(action); total_profit += reward
-        if getattr(env_val, 'inventory', None):
-            final_price = float(env_val.prices[env_val.current_step])
-            for bought_price, qty in env_val.inventory:
-                total_profit += (final_price - bought_price) * qty
-            env_val.inventory.clear()
-        print(f'Validation Total Profit: {float(total_profit):.4f}, Trades: {trades_val}')
-        logging.info(f'Validation Total Profit: {float(total_profit):.4f}, Trades: {trades_val}')
-        return
-    # Resolve pretrained model path: normalize to basename
-    import glob
-    if pretrained:
-        # find latest .h5 in models/ if no specific file
-        if not model_name or not model_name.endswith('.h5'):
-            h5_files = glob.glob(os.path.join('models', '*.h5'))
-            if not h5_files:
-                logging.warning('No pretrained .h5 found in models/, training from scratch.')
-                pretrained = False
-                model_name = None
-            else:
-                h5_files.sort(key=os.path.getmtime, reverse=True)
-                model_name = os.path.basename(h5_files[0])
-        else:
-            # keep only filename
-            model_name = os.path.basename(model_name)
-
-    # Initialize agent with dynamic window_size (state_size computed internally)
-    agent = Agent(window_size, strategy=strategy, reset_every=target_update, pretrained=pretrained, model_name=model_name)
-    agent.model_type = model_type
-    if model_type == 'lstm' and model_name and not model_name.endswith('_LSTM'):
-        model_name += '_LSTM'
-        agent.model_name = model_name
-
-    best_val_profit = None
-    best_val_epoch = None
-    no_improve = 0
-    strategies = strategy.split(",")
-    for strat in strategies:
-        agent.strategy = strat
     pbar = tqdm(range(1, ep_count+1), desc="Finetune Epoch")
     init_thr, final_thr = -0.01, 0.01  # dynamic threshold schedule
     for epoch in pbar:
@@ -507,23 +585,31 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         # Annualized Sharpe ratio (per trade): mean / std * sqrt(N)
         N = len(deltas)
         sharpe = (np.mean(deltas) / (np.std(deltas) + 1e-8)) * np.sqrt(N) if N > 1 else 0.0
-        print(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}")
-        logging.info(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}")
+        train_omega = omega(deltas) if len(deltas) > 1 else 0.0
+        train_cvar = cvar(deltas) if len(deltas) > 1 else 0.0
+        train_max_dd = max_drawdown(deltas) if len(deltas) > 1 else 0.0
+        print(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f} omega={train_omega:.2f} maxDD={train_max_dd:.2f} cvar={train_cvar:.2f}")
+        logging.info(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f} omega={train_omega:.2f} maxDD={train_max_dd:.2f} cvar={train_cvar:.2f}")
         with open("train_finetune.log", "a") as f:
-            f.write(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}\n")
+            f.write(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f} omega={train_omega:.2f} maxDD={train_max_dd:.2f} cvar={train_cvar:.2f}\n")
         # Evaluate on val set
         val_profit, val_deltas = evaluate_model(agent, val_data, window_size, debug, min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices), return_deltas=True)
         # Annualized Sharpe for val
         N_val = len(val_deltas)
         sharpe_val = (np.mean(val_deltas) / (np.std(val_deltas) + 1e-8)) * np.sqrt(N_val) if N_val > 1 else 0.0
-        logging.info(f"Epoch {epoch}/{ep_count}: val_profit={val_profit:.2f} val_sharpe={sharpe_val:.2f}")
-        print(f"Epoch {epoch}/{ep_count}: val_profit={val_profit:.2f} val_sharpe={sharpe_val:.2f}")
-        pbar.set_postfix(train_profit=f"{profit:.2f}", val_profit=f"{val_profit:.2f}", sharpe=f"{sharpe:.2f}", val_sharpe=f"{sharpe_val:.2f}")
+        val_omega = omega(val_deltas) if len(val_deltas) > 1 else 0.0
+        val_cvar = cvar(val_deltas) if len(val_deltas) > 1 else 0.0
+        val_max_dd = max_drawdown(val_deltas) if len(val_deltas) > 1 else 0.0
+        logging.info(f"Epoch {epoch}/{ep_count}: val_profit={val_profit:.2f} val_sharpe={sharpe_val:.2f} omega={val_omega:.2f} maxDD={val_max_dd:.2f} cvar={val_cvar:.2f}")
+        print(f"Epoch {epoch}/{ep_count}: val_profit={val_profit:.2f} val_sharpe={sharpe_val:.2f} omega={val_omega:.2f} maxDD={val_max_dd:.2f} cvar={val_cvar:.2f}")
+        with open("train_finetune.log", "a") as f:
+            f.write(f"Epoch {epoch}/{ep_count}: val_profit={val_profit:.2f} val_sharpe={sharpe_val:.2f} omega={val_omega:.2f} maxDD={val_max_dd:.2f} cvar={val_cvar:.2f}\n")
+        pbar.set_postfix(train_profit=f"{profit:.2f}", val_profit=f"{val_profit:.2f}", sharpe=f"{sharpe:.2f}", val_sharpe=f"{sharpe_val:.2f}", omega=f"{train_omega:.2f}/{val_omega:.2f}", maxDD=f"{train_max_dd:.2f}/{val_max_dd:.2f}", cvar=f"{train_cvar:.2f}/{val_cvar:.2f}")
         if best_val_profit is None or val_profit > best_val_profit:
             best_val_profit = val_profit
             best_val_epoch = epoch
             agent.model.save_weights(f"models/best_{strat}_{model_name}_{window_size}.weights.h5")
-            no_improve = 0
+            save_window_size(f"models/best_{strat}_{model_name}_{window_size}.weights.h5", window_size)
         else:
             no_improve += 1
         if earlystop_patience and no_improve >= earlystop_patience:
@@ -532,31 +618,154 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
     print(f"Best val profit={best_val_profit:.2f} at epoch {best_val_epoch}")
     logging.info(f"Best val profit={best_val_profit:.2f} at epoch {best_val_epoch}")
 
-
-if __name__ == "__main__":
-    args = docopt(__doc__)
-
-    stock = args["<stock>"]
-    window_size = int(args["--window-size"])
-    batch_size = int(args["--batch-size"])
-    ep_count = int(args["--episode-count"])
-    strategy = args["--strategy"]
-    model_name = args["--model-name"]
-    pretrained = args["--pretrained"]
-    debug = args["--debug"]
-    model_type = args.get("--model-type") or 'dense'
-    target_update = int(args.get("--target-update") or 100)
-    td3_timesteps = int(args.get("--td3-timesteps") or 1000000)
-    td3_noise_sigma = float(args.get("--td3-noise-sigma") or 1.0)
-    td3_save_name = args.get("--td3-save-name") or 'td3_model'
-
-    # LSTM: 500 эпох, earlystop=50
+if __name__ == '__main__':
+    print("Запуск блока __main__")
+    try:
+        # Исправляем обработку аргументов docopt
+        if len(sys.argv) > 1 and sys.argv[1].endswith('.csv'):
+            # Если первый аргумент - CSV файл, то используем его напрямую
+            stock = sys.argv[1]
+            print(f"Путь к файлу данных (прямой): {stock}")
+        else:
+            # Иначе используем docopt
+            args = docopt(__doc__)
+            print(f"Аргументы успешно парсинг docopt: {args}")
+            stock = args['<stock>']
+            print(f"Путь к файлу данных: {stock}")
+        
+        # Проверяем существование файла с относительным и абсолютным путем
+        if not os.path.isfile(stock):
+            # Пробуем искать в подкаталоге data
+            data_path = os.path.join('data', stock)
+            if os.path.isfile(data_path):
+                stock = data_path
+                print(f"Файл найден в подкаталоге data: {stock}")
+            else:
+                print(f"Error: Файл {stock} не найден ни в текущем каталоге, ни в подкаталоге data")
+                print(__doc__)
+                exit(1)
+        if not stock.lower().endswith('.csv'):
+            print(f"Error: Файл должен быть в формате CSV. Получено: {stock}")
+            print(__doc__)
+            exit(1)
+        print(f"Используем файл данных: {stock}")
+        
+        # Парсим остальные аргументы
+        if 'args' in locals():
+            # Если использовали docopt
+            window_size = int(args["--window-size"] or 20)
+            batch_size = int(args["--batch-size"] or 32)
+            ep_count = int(args["--episode-count"] or 50)
+            strategy = args["--strategy"] or "td3"
+            model_name = args["--model-name"] or "model_debug"
+            pretrained = args["--pretrained"]
+            debug = args["--debug"]
+            model_type = args["--model-type"] or "dense"
+            target_update = int(args["--target-update"] or 100)
+            td3_timesteps = int(args["--td3-timesteps"] or 100000)
+            td3_noise_sigma = float(args["--td3-noise-sigma"] or 1.0)
+            td3_save_name = args["--td3-save-name"] or "td3_model"
+            force_cpu = args["--force-cpu"]
+        else:
+            # Используем значения по умолчанию и прямой парсинг аргументов
+            window_size = 20
+            batch_size = 32
+            ep_count = 50
+            strategy = "td3"
+            model_name = "model_debug"
+            pretrained = False
+            debug = "--debug" in sys.argv
+            model_type = "dense"
+            target_update = 100
+            td3_timesteps = 100000
+            force_cpu = "--force-cpu" in sys.argv
+            
+            # Парсим числовые аргументы
+            for i, arg in enumerate(sys.argv):
+                if arg == "--window-size" and i+1 < len(sys.argv):
+                    window_size = int(sys.argv[i+1])
+                elif arg == "--batch-size" and i+1 < len(sys.argv):
+                    batch_size = int(sys.argv[i+1])
+                elif arg == "--episode-count" and i+1 < len(sys.argv):
+                    ep_count = int(sys.argv[i+1])
+                elif arg == "--strategy" and i+1 < len(sys.argv):
+                    strategy = sys.argv[i+1]
+                elif arg == "--model-name" and i+1 < len(sys.argv):
+                    model_name = sys.argv[i+1]
+                elif arg == "--model-type" and i+1 < len(sys.argv):
+                    model_type = sys.argv[i+1]
+                elif arg == "--target-update" and i+1 < len(sys.argv):
+                    target_update = int(sys.argv[i+1])
+                elif arg == "--td3-timesteps" and i+1 < len(sys.argv):
+                    td3_timesteps = int(sys.argv[i+1])
+                elif arg == "--td3-noise-sigma" and i+1 < len(sys.argv):
+                    td3_noise_sigma = float(sys.argv[i+1])
+                elif arg == "--td3-save-name" and i+1 < len(sys.argv):
+                    td3_save_name = sys.argv[i+1]
+                elif arg == "--pretrained":
+                    pretrained = True
+            
+            # Если не задано имя модели TD3, используем значение по умолчанию
+            if "td3_save_name" not in locals():
+                td3_save_name = "td3_model"
+            if "td3_noise_sigma" not in locals():
+                td3_noise_sigma = 1.0
+        
+        print("Все аргументы успешно парсинг")
+        
+        if force_cpu:
+            print("Режим: принудительное использование CPU")
+        print(f"ARGS:\n  stock={stock}\n  window_size={window_size}\n  batch_size={batch_size}\n  ep_count={ep_count}\n  strategy={strategy}\n  model_name={model_name}\n  pretrained={pretrained}\n  debug={debug}\n  model_type={model_type}\n  target_update={target_update}\n  td3_timesteps={td3_timesteps}\n  td3_noise_sigma={td3_noise_sigma}\n  td3_save_name={td3_save_name}")
+    except Exception as e:
+        print(f"Ошибка при парсинге аргументов: {e}")
+        traceback.print_exc()
+        sys.exit(1)
+    # Применяем настройки для модели LSTM
     if model_type == 'lstm':
         ep_count = 500
         earlystop_patience = 50
     else:
         earlystop_patience = None
 
-    main(stock, window_size=window_size, batch_size=batch_size, ep_count=ep_count,
-         strategy=strategy, model_name=model_name, pretrained=pretrained, debug=debug, model_type=model_type, target_update=target_update,
-         td3_timesteps=td3_timesteps, td3_noise_sigma=td3_noise_sigma, td3_save_name=td3_save_name)
+    # Для TD3 фиксируем window_size=47
+    if strategy.lower() == 'td3':
+        window_size = 47  # Жёстко фиксируем window_size=47 для TD3
+        
+    # Определяем имя модели для сохранения
+    model_save_name = td3_save_name if strategy.lower() == 'td3' else model_name
+    
+    # Запускаем основную функцию обучения
+    try:
+        print("Запуск main() с параметрами:")
+        print(f"  stock={stock}")
+        print(f"  window_size={window_size}")
+        print(f"  batch_size={batch_size}")
+        print(f"  ep_count={ep_count}")
+        print(f"  strategy={strategy}")
+        print(f"  model_name={model_name}")
+        print(f"  pretrained={pretrained}")
+        print(f"  debug={debug}")
+        print(f"  target_update={target_update}")
+        print(f"  td3_timesteps={td3_timesteps}")
+        print(f"  td3_noise_sigma={td3_noise_sigma}")
+        print(f"  td3_save_name={td3_save_name}")
+        
+        # Вызываем функцию main с параметрами
+        main(stock, window_size, batch_size, ep_count, strategy, model_name, pretrained, debug, target_update, td3_timesteps, td3_noise_sigma, td3_save_name)
+        
+        # Сохраняем window_size в модель после обучения
+        if model_save_name:
+            try:
+                from stable_baselines3 import TD3
+                if os.path.exists(model_save_name):
+                    model = TD3.load(model_save_name)
+                    model.save(model_save_name, user_data={"window_size": window_size})
+                    print(f"Успешно сохранили window_size={window_size} в модель {model_save_name}")
+            except Exception as e:
+                print(f"Ошибка при сохранении window_size в модель: {e}")
+                print(f"[WARNING] Не удалось сохранить window_size в user_data: {e}")
+        
+        print("Скрипт успешно завершен.")
+    except Exception as e:
+        print(f"[ERROR] Ошибка в основном блоке: {e}")
+        traceback.print_exc()

@@ -17,14 +17,25 @@ def sigmoid(x):
 
 
 def get_state(data, t, window_size, min_v=None, max_v=None):
-    """Возвращает state размерности (window_size+3,) = (window_size-1 сигмоид + SMA+EMA+RSI + vol_ratio), все признаки в [0,1]"""
+    """Возвращает state размерности (window_size-1+6,) = (window_size-1 сигмоид + SMA+EMA+RSI + vol_ratio + momentum + volatility), все признаки в [0,1]"""
     d = t - window_size + 1
     block = data[d: t + 1] if d >= 0 else (-d) * [data[0]] + data[0: t + 1]
     # separate price and volume
     prices = [p for p, v in block]
     volumes = [v for p, v in block]
-    # price change sigmoids
-    res = [sigmoid(prices[i + 1] - prices[i]) for i in range(window_size - 1)]
+    # Проверяем, что у нас достаточно данных для вычисления сигмоидов
+    if len(prices) < 2:
+        # Если недостаточно данных, заполняем значениями 0.5 (нейтральные)
+        res = [0.5] * (window_size - 1)
+    else:
+        # Вычисляем сигмоиды изменения цены, но не выходим за границы массива
+        # Если данных меньше чем window_size, используем только доступные данные
+        actual_range = min(len(prices) - 1, window_size - 1)
+        res = [sigmoid(prices[i + 1] - prices[i]) for i in range(actual_range)]
+        
+        # Если не хватает данных, дополняем нейтральными значениями
+        if actual_range < window_size - 1:
+            res += [0.5] * (window_size - 1 - actual_range)
     import numpy as np
     import pandas as pd
     price_arr = np.array(prices)
@@ -57,6 +68,6 @@ def get_state(data, t, window_size, min_v=None, max_v=None):
     if not hasattr(get_state, '_log_count'):
         get_state._log_count = 0
     if get_state._log_count < 5:
-        print(f'[get_state] t={t} block={block} sigmoids={res[:-6]} sma_n={sma_n:.4f} ema_n={ema_n:.4f} rsi_n={rsi_n:.4f} vol_ratio={vol_ratio:.4f} mom_n={mom_n:.4f} vol_std={vol_std:.4f}')
+        print(f'[get_state] t={t} block={block} sigmoids={res[:-6]} sma_n={sma_n:.4f} ema_n={ema_n:.4f} rsi_n={rsi_n:.4f} vol_ratio={vol_ratio:.4f} mom_n={mom_n:.4f} vol_std={vol_std:.4f} state_dim={len(res)}')
         get_state._log_count += 1
-    return np.array([res])
+    return np.array(res)

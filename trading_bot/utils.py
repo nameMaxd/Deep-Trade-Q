@@ -83,15 +83,28 @@ def get_stock_data(stock_file, norm_type="minmax"):
         if not os.path.isfile(path):
             raise FileNotFoundError(f"File '{stock_file}' or '{path}' not found.")
     df = pd.read_csv(path)
-    prices = np.array(df['Adj Close'])
-    prices = fillna_inf(prices)
-    if norm_type == "zscore":
-        prices = zscore_normalize(prices)
-    elif norm_type == "log-returns":
-        prices = log_returns(prices)
+    if 'Volume' in df.columns:
+        prices = np.array(df['Adj Close'])
+        volumes = np.array(df['Volume'])
+        prices = fillna_inf(prices)
+        volumes = fillna_inf(volumes)
+        if norm_type == "zscore":
+            prices = zscore_normalize(prices)
+        elif norm_type == "log-returns":
+            prices = log_returns(prices)
+        else:
+            prices = minmax_normalize(prices)
+        return list(zip(prices, volumes))
     else:
-        prices = minmax_normalize(prices)
-    return list(prices)
+        prices = np.array(df['Adj Close'])
+        prices = fillna_inf(prices)
+        if norm_type == "zscore":
+            prices = zscore_normalize(prices)
+        elif norm_type == "log-returns":
+            prices = log_returns(prices)
+        else:
+            prices = minmax_normalize(prices)
+        return list(prices)
 
 
 def switch_k_backend_device():

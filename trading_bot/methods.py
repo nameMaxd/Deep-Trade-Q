@@ -95,7 +95,7 @@ def evaluate_model(agent, data, window_size, debug, min_v=None, max_v=None, retu
     agent.epsilon = 0.0
     # compute normalization bounds
     if min_v is None or max_v is None:
-        arr = np.array([d[0] for d in data])
+        arr = np.array([d[0] if isinstance(d, (list, tuple, np.ndarray)) else d for d in data])
         min_v, max_v = np.min(arr), np.max(arr)
     # batch build states
     n = len(data) - 1
@@ -120,7 +120,7 @@ def evaluate_model(agent, data, window_size, debug, min_v=None, max_v=None, retu
             agent.inventory.append(data[t][0])
             history.append((data[t], "BUY"))
             if debug:
-                logging.debug(f"Buy at: {format_currency(data[t])}")
+                logging.debug(f"Buy at: {format_currency(data[t][0] if isinstance(data[t], (list, tuple)) else data[t])}")
         # SELL
         elif action == 2 and agent.inventory:
             bought_price = agent.inventory.pop(0)

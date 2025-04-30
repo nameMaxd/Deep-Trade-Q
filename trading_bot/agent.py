@@ -14,6 +14,7 @@ from tensorflow.keras.layers import Dropout, BatchNormalization, LSTM, Input, Re
 from tensorflow.keras.regularizers import l2
 
 
+@tf.keras.utils.register_keras_serializable()
 def huber_loss(y_true, y_pred, clip_delta=1.0):
     """Huber loss - Custom Loss Function for Q Learning"""
     error = y_true - y_pred

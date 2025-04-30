@@ -33,7 +33,7 @@ def main(eval_stock, window_size, model_name, debug):
     Args: [python eval.py --help]
     """    
     data = get_stock_data(eval_stock)
-    initial_offset = data[1] - data[0]
+    initial_offset = (data[1][0] - data[0][0]) if isinstance(data[0], (list, tuple)) else (data[1] - data[0])
 
     # Single Model Evaluation
     if model_name is not None:

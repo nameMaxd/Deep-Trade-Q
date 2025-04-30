@@ -10,7 +10,8 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.models import load_model, clone_model
 from tensorflow.keras.layers import Dense
 from tensorflow.keras.optimizers import Adam
-from trading_bot.utils import WINDOW_SIZE
+from tensorflow.keras.layers import Dropout, BatchNormalization, LSTM, Input, Reshape
+from tensorflow.keras.regularizers import l2
 
 
 def huber_loss(y_true, y_pred, clip_delta=1.0):
@@ -29,13 +30,14 @@ def huber_loss(y_true, y_pred, clip_delta=1.0):
 class Agent:
     """ Stock Trading Bot """
 
-    def __init__(self, state_size, strategy="t-dqn", reset_every=5000, pretrained=False, model_name=None, buy_threshold=-0.01):
+    def __init__(self, window_size, strategy="t-dqn", reset_every=10000, pretrained=False, model_name=None, buy_threshold=-0.01):
         self.strategy = strategy
 
         # agent config
-        # Используем переданный window_size для расчёта размера состояния
-        self.window_size = WINDOW_SIZE
-        self.state_size = WINDOW_SIZE - 1 + 4    # теперь включает vol_ratio
+        # используем переданный window_size для вычисления размера состояния
+        self.window_size = window_size
+        # features: window_size-1 sigmoids + SMA, EMA, RSI, vol_ratio + momentum, volatility
+        self.state_size = window_size - 1 + 6
         self.action_size = 3           		# [sit, buy, sell]
         self.model_name = model_name
         self.inventory = []
@@ -73,9 +75,6 @@ class Agent:
 
     def _model(self):
         """Создает модель: Dense или LSTM (выбор через self.model_type)"""
-        from tensorflow.keras.layers import Dropout, BatchNormalization, LSTM, Dense, Input, Reshape
-        from tensorflow.keras.regularizers import l2
-        from tensorflow.keras.models import Sequential
         if hasattr(self, 'model_type') and self.model_type == 'lstm':
             # LSTM-архитектура, shape (timesteps, features)
             model = Sequential()

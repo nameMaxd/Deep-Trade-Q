@@ -253,7 +253,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                 return True
 
         # создаём среды
-        env = TradingEnv(raw_train_prices, raw_train_volumes, window_size)
+        env = TradingEnv(raw_train_prices, raw_train_volumes, window_size, dual_phase=False)
         # enforce same normalization bounds for train and val envs
         train_eval_env = TradingEnv(
             raw_train_prices, raw_train_volumes, window_size,
@@ -281,6 +281,11 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
             buffer_size=1_000_000,
             action_noise=action_noise
         )
+        # ===== L2 Regularization (Weight Decay) =====
+        # Устанавливаем небольшой weight decay для actor и critic оптимизаторов
+        for optimizer in (model.actor.optimizer, model.critic.optimizer):
+            for param_group in optimizer.param_groups:
+                param_group['weight_decay'] = 1e-5
         # Setup callbacks: progress bar and evaluation with early stopping
         save_path = f'{td3_save_name}_{os.path.splitext(stock)[0]}'
         tqdm_cb = TqdmCallback(td3_timesteps)
@@ -471,7 +476,7 @@ if __name__ == "__main__":
     debug = args["--debug"]
     model_type = args.get("--model-type") or 'dense'
     target_update = int(args.get("--target-update") or 100)
-    td3_timesteps = int(args.get("--td3-timesteps") or 100000)
+    td3_timesteps = int(args.get("--td3-timesteps") or 1000000)
     td3_noise_sigma = float(args.get("--td3-noise-sigma") or 1.0)
     td3_save_name = args.get("--td3-save-name") or 'td3_model'
 

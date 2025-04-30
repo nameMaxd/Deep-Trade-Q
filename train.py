@@ -113,6 +113,70 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
     print(f"train_data: min={np.min(train_data):.2f}, max={np.max(train_data):.2f}, mean={np.mean(train_data):.2f}")
     # Принудительно создать лог-файл
     with open("train_finetune.log", "a") as f: f.write("=== Training started ===\n")
+    # TD3 strategy: train with Stable-Baselines3 and visualize via VisualizeCallback
+    if strategy == 'td3':
+        # Setup logging directories
+        plots_dir = os.path.join(os.getcwd(), 'plots')
+        monitor_dir = os.path.join(plots_dir, 'monitor')
+        tb_dir = os.path.join(plots_dir, 'tensorboard')
+        os.makedirs(monitor_dir, exist_ok=True)
+        os.makedirs(tb_dir, exist_ok=True)
+        import numpy as np
+        from stable_baselines3 import TD3
+        from stable_baselines3.common.noise import NormalActionNoise
+        from stable_baselines3.common.monitor import Monitor
+        from trading_bot.env import TradingEnv
+        from trading_bot.visualize_callback import VisualizeCallback
+
+        # load and clean CSV
+        pattern = re.compile(r"\d{4}-\d{2}-\d{2}")
+        raw_lines = []
+        with open(stock, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.startswith('Date,'):
+                    raw_lines.append(line)
+                else:
+                    m = pattern.search(line)
+                    if m:
+                        raw_lines.append(line[m.start():])
+        df = pd.read_csv(io.StringIO('\n'.join(raw_lines)))
+        df['Date'] = pd.to_datetime(df['Date'])
+        df = df.sort_values('Date').reset_index(drop=True)
+        # split train/val
+        train_df = df[(df['Date'] >= '2015-01-01') & (df['Date'] < '2024-01-01')]
+        val_df = df[(df['Date'] >= '2024-01-01') & (df['Date'] <= '2024-06-30')]
+        train_prices = train_df['Adj Close'].values
+        train_vols = train_df['Volume'].values
+        val_prices = val_df['Adj Close'].values
+        val_vols = val_df['Volume'].values
+
+        train_env = TradingEnv(train_prices, train_vols, window_size)
+        val_env = TradingEnv(val_prices, val_vols, window_size)
+        # Wrap training env with Monitor for logging rewards
+        train_env = Monitor(train_env, monitor_dir)
+        n_actions = train_env.action_space.shape[0]
+        action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=td3_noise_sigma * np.ones(n_actions))
+        # Initialize TD3 with TensorBoard logging
+        model = TD3('MlpPolicy', train_env, action_noise=action_noise, verbose=1,
+                    tensorboard_log=tb_dir)
+        # attach visualization callback
+        visual_cb = VisualizeCallback(train_env, val_env, model, total_timesteps=td3_timesteps)
+        model.learn(total_timesteps=td3_timesteps, callback=visual_cb)
+        model.save(f"{td3_save_name}")
+        # Plot training reward progression from Monitor logs
+        import pandas as pd
+        import matplotlib.pyplot as plt
+        df = pd.read_csv(os.path.join(monitor_dir, 'monitor.csv'), comment='#')
+        plt.figure(figsize=(8,4))
+        plt.plot(df['l'], df['r'], label='Episode Reward')
+        plt.xlabel('Episode')
+        plt.ylabel('Reward')
+        plt.title('Training Reward Progression')
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(os.path.join(plots_dir, 'training_reward.png'))
+        plt.close()
+        return
     # если выбран TD3, запускаем Stable-Baselines3 TD3
     if strategy.lower() == 'td3':
         from trading_bot.env import TradingEnv

@@ -88,7 +88,7 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
     return (episode, ep_count, total_profit, np.mean(np.array(avg_loss)))
 
 
-def evaluate_model(agent, data, window_size, debug, min_v=None, max_v=None):
+def evaluate_model(agent, data, window_size, debug, min_v=None, max_v=None, return_deltas=False):
     import numpy as np
     # prepare evaluation: clear memory, deterministic policy
     agent.memory.clear()
@@ -105,6 +105,7 @@ def evaluate_model(agent, data, window_size, debug, min_v=None, max_v=None):
     total_profit = 0
     history = []
     agent.inventory = []
+    deltas = []
     # simulate
     for t, q in enumerate(qvals):
         # action selection via threshold
@@ -125,6 +126,7 @@ def evaluate_model(agent, data, window_size, debug, min_v=None, max_v=None):
             bought_price = agent.inventory.pop(0)
             delta = float(data[t][0]) - float(bought_price)
             total_profit += delta
+            deltas.append(delta)
             history.append((data[t], "SELL"))
             if debug:
                 logging.debug(f"Sell at: {format_currency(data[t])} | {format_position(delta)}")
@@ -133,5 +135,9 @@ def evaluate_model(agent, data, window_size, debug, min_v=None, max_v=None):
             history.append((data[t], "HOLD"))
     # liquidate remaining
     for buy_price in agent.inventory:
-        total_profit += float(data[-1][0]) - float(buy_price)
+        delta = float(data[-1][0]) - float(buy_price)
+        total_profit += delta
+        deltas.append(delta)
+    if return_deltas:
+        return total_profit, deltas
     return total_profit, history

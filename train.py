@@ -504,15 +504,21 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
             profit += delta
             deltas.append(delta)
         trades = valid_trades
-        sharpe = (np.mean(deltas) / (np.std(deltas) + 1e-8)) if deltas else 0.0
+        # Annualized Sharpe ratio (per trade): mean / std * sqrt(N)
+        N = len(deltas)
+        sharpe = (np.mean(deltas) / (np.std(deltas) + 1e-8)) * np.sqrt(N) if N > 1 else 0.0
         print(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}")
         logging.info(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}")
         with open("train_finetune.log", "a") as f:
             f.write(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}\n")
         # Evaluate on val set
-        val_profit, _ = evaluate_model(agent, val_data, window_size, debug, min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices))
-        logging.info(f"Epoch {epoch}/{ep_count}: val_profit={val_profit:.2f}")
-        pbar.set_postfix(train_profit=f"{profit:.2f}", val_profit=f"{val_profit:.2f}", sharpe=f"{sharpe:.2f}")
+        val_profit, val_deltas = evaluate_model(agent, val_data, window_size, debug, min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices), return_deltas=True)
+        # Annualized Sharpe for val
+        N_val = len(val_deltas)
+        sharpe_val = (np.mean(val_deltas) / (np.std(val_deltas) + 1e-8)) * np.sqrt(N_val) if N_val > 1 else 0.0
+        logging.info(f"Epoch {epoch}/{ep_count}: val_profit={val_profit:.2f} val_sharpe={sharpe_val:.2f}")
+        print(f"Epoch {epoch}/{ep_count}: val_profit={val_profit:.2f} val_sharpe={sharpe_val:.2f}")
+        pbar.set_postfix(train_profit=f"{profit:.2f}", val_profit=f"{val_profit:.2f}", sharpe=f"{sharpe:.2f}", val_sharpe=f"{sharpe_val:.2f}")
         if best_val_profit is None or val_profit > best_val_profit:
             best_val_profit = val_profit
             best_val_epoch = epoch

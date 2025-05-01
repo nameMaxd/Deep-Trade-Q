@@ -12,33 +12,40 @@ class VisualizeCallback(BaseCallback):
     Callback for plotting and saving buy/sell markers on price chart for train and validation environments.
     Generates up to `max_plots` evenly spaced evaluation plots.
     """
-    def __init__(self, train_env, val_env, model, train_env_raw=None, val_env_raw=None, total_timesteps=100000, max_plots=100, verbose=0):
-        super().__init__(verbose)
-        self.train_env = train_env  # Векторизованное окружение для обучения
-        self.val_env = val_env    # Векторизованное окружение для валидации
-        self.train_env_raw = train_env_raw  # Оригинальное окружение для визуализации
-        self.val_env_raw = val_env_raw    # Оригинальное окружение для визуализации
+    def __init__(self, train_env, val_env, model, train_env_raw=None, val_env_raw=None, total_timesteps=10000, eval_freq=5000, stats_freq=5000):
+        super().__init__()
+        self.train_env = train_env
+        self.val_env = val_env
+        self.train_env_raw = train_env_raw
+        self.val_env_raw = val_env_raw
         self.model = model
-        self.max_plots = max_plots
         self.total_timesteps = total_timesteps
-        # Графики и таблицы каждые 5000 шагов
-        self.eval_freq = 5000
-        # Статистика каждые 5000 шагов
-        self.stats_freq = 5000
-        # prepare folders
-        self.plots_dir = os.path.join(os.getcwd(), 'plots')
-        os.makedirs(os.path.join(self.plots_dir, 'train'), exist_ok=True)
-        os.makedirs(os.path.join(self.plots_dir, 'val'), exist_ok=True)
-        self.plot_count = 0
-        
-        # Инициализация прогресс-бара
-        self.pbar = tqdm(total=total_timesteps, desc='Обучение TD3')
+        self.eval_freq = eval_freq
+        self.stats_freq = stats_freq
+        self.n_calls = 0
         self.last_update = 0
         self.start_time = time.time()
+        self.plot_count = 0
+        self.plots_dir = os.path.join('plots', 'train')
+        os.makedirs(self.plots_dir, exist_ok=True)
+        os.makedirs(os.path.join(self.plots_dir, 'train'), exist_ok=True)
+        os.makedirs(os.path.join(self.plots_dir, 'val'), exist_ok=True)
         
-        print(f"Создан VisualizeCallback, интервал оценки: {self.eval_freq} шагов, статистика: {self.stats_freq} шагов")
+        # Создаем прогресс-бар для отслеживания обучения
+        # Используем position=0, чтобы избежать проблем с перезаписью
+        self.pbar = None  # Инициализируем в _on_step для предотвращения проблем с tqdm
+        print(f'Создан VisualizeCallback, интервал оценки: {eval_freq} шагов, статистика: {stats_freq} шагов')
 
     def _on_step(self) -> bool:
+        # Создаем прогресс-бар при первом вызове или при начале нового эпизода
+        if self.pbar is None or self.n_calls == 0:
+            # Закрываем старый прогресс-бар, если он существует
+            if self.pbar is not None:
+                self.pbar.close()
+            # Создаем новый прогресс-бар
+            self.pbar = tqdm(total=self.total_timesteps, desc='Обучение TD3', position=0, leave=True)
+            self.last_update = 0
+        
         # Обновляем прогресс-бар только каждые 10 шагов для ускорения
         if self.n_calls % 10 == 0:
             steps_done = self.n_calls - self.last_update

@@ -6,27 +6,29 @@ from .ops import get_state
 class TradingEnv(gym.Env):
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self, prices, volumes, window_size=47, commission=0.001, min_trade_value=1000.0, max_inventory=8, carry_cost=0.0001, min_v=None, max_v=None, risk_lambda=0.1, drawdown_lambda=0.1, dual_phase=True):
+    def __init__(self, prices, volumes, window_size=47, commission=0.001, min_trade_value=1000.0, max_inventory=8, carry_cost=0.0001, min_v=None, max_v=None, risk_lambda=0.1, drawdown_lambda=0.1, dual_phase=True, stop_loss_pct=0.05):
         super().__init__()
         self.prices = prices
         self.volumes = volumes
-        # position limits and holding costs
-        self.max_inventory = max_inventory  # Максимальное количество позиций ограничено до 8
-        self.carry_cost = carry_cost
-        # global normalization bounds override
-        self.global_min_v = min_v
-        self.global_max_v = max_v
         self.window_size = window_size
         # features: window_size-1 sigmoids + SMA, EMA, RSI, vol_ratio + momentum, volatility
         self.state_size = window_size - 1 + 6  # без +2, inventory добавляется отдельно!
         # transaction commission fraction
         self.commission = commission
         # minimum trade value threshold (in $) to open a position
-        self.min_trade_value = 1000.0  # Увеличиваем размер сделки до $1000 для более заметного профита
+        self.min_trade_value = min_trade_value  # Увеличиваем размер сделки для более заметного профита
+        # position limits and holding costs
+        self.max_inventory = max_inventory  # Максимальное количество позиций ограничено до 8
+        self.carry_cost = carry_cost
+        # global normalization bounds override
+        self.global_min_v = min_v
+        self.global_max_v = max_v
         # risk aversion parameters
         self.risk_lambda = risk_lambda
         self.drawdown_lambda = drawdown_lambda
         self.dual_phase = dual_phase
+        # Параметры стоп-лоссов
+        self.stop_loss_pct = stop_loss_pct  # Процент стоп-лосса (5% по умолчанию)
         self.action_space = spaces.Box(
             low=np.array([0.0]), high=np.array([2.0]), shape=(1,), dtype=np.float32
         )
@@ -224,8 +226,45 @@ class TradingEnv(gym.Env):
         safe_step = min(self.current_step, len(self.prices) - 1)
         price = float(self.prices[safe_step])
 
+        # Проверяем стоп-лоссы перед выполнением действия агента
+        # Это позволяет защитить от больших убытков независимо от решения агента
+        stop_loss_triggered = False
+        stop_loss_reward = 0
+        
+        # Проходим по всем позициям и проверяем стоп-лоссы
+        inventory_with_stop_loss = []
+        for i, (bought_price, qty, position_size) in enumerate(self.inventory):
+            # Рассчитываем текущий убыток в процентах
+            current_loss_pct = (bought_price - price) / bought_price
+            
+            # Если убыток превышает порог стоп-лосса, закрываем позицию
+            if current_loss_pct >= self.stop_loss_pct:
+                stop_loss_triggered = True
+                
+                # Рассчитываем прибыль/убыток от закрытия позиции по стоп-лоссу
+                profit = (price - bought_price) * qty
+                cost = self.commission * (price * qty + bought_price * qty)
+                net = profit - cost
+                
+                # Добавляем к награде и общей прибыли
+                stop_loss_reward += net
+                self.total_profit += net
+                
+                # Увеличиваем счетчик сделок
+                self.trade_count += 1
+            else:
+                # Если стоп-лосс не сработал, оставляем позицию в инвентаре
+                inventory_with_stop_loss.append((bought_price, qty, position_size))
+        
+        # Обновляем инвентарь после проверки стоп-лоссов
+        self.inventory = inventory_with_stop_loss
+        
+        # Если сработал хотя бы один стоп-лосс, добавляем соответствующую награду
+        if stop_loss_triggered:
+            self.last_action_step = self.current_step
+        
         # Получаем вознаграждение на основе действия и изменения цены
-        reward = self._calculate_reward(action)
+        reward = self._calculate_reward(action) + stop_loss_reward
 
         # Обрабатываем действия агента
         if action == 0:  # HOLD
@@ -233,10 +272,51 @@ class TradingEnv(gym.Env):
             pass
             
         elif action == 1:  # BUY
-            # BUY: invest fixed amount self.min_trade_value (fractional share)
+            # Динамическое управление размером позиции
             if len(self.inventory) < self.max_inventory:
-                qty = self.min_trade_value / price
-                self.inventory.append((price, qty))
+                # Определяем размер позиции в зависимости от уверенности в тренде
+                # Используем короткий и длинный тренды для определения размера позиции
+                trend_window_short = 5
+                trend_window_long = 10
+                
+                # Короткий тренд (для быстрых решений)
+                start_idx_short = max(0, self.current_step - trend_window_short)
+                price_window_short = self.prices[start_idx_short:self.current_step + 1]
+                
+                # Длинный тренд (для стратегических решений)
+                start_idx_long = max(0, self.current_step - trend_window_long)
+                price_window_long = self.prices[start_idx_long:self.current_step + 1]
+                
+                # Определяем направление трендов
+                if len(price_window_short) > 1 and len(price_window_long) > 1:
+                    trend_short = np.polyfit(np.arange(len(price_window_short)), price_window_short, 1)[0]
+                    trend_long = np.polyfit(np.arange(len(price_window_long)), price_window_long, 1)[0]
+                    
+                    # Проверяем, совпадают ли направления трендов (более надежный сигнал)
+                    trends_aligned = (trend_short > 0 and trend_long > 0)
+                    
+                    # Базовый размер позиции
+                    base_position_size = 25.0  # Минимальный размер позиции $25
+                    
+                    # Определяем множитель размера позиции в зависимости от силы тренда
+                    if trends_aligned and trend_short > 0 and trend_long > 0:
+                        # Сильный восходящий тренд - увеличиваем размер позиции
+                        trend_strength = abs(trend_long) / np.mean(price_window_long) * 100
+                        position_multiplier = min(4.0, 1.0 + trend_strength / 5.0)  # Максимум 4x от базового размера
+                    else:
+                        # Слабый или противоречивый тренд - используем базовый размер
+                        position_multiplier = 1.0
+                    
+                    # Рассчитываем итоговый размер позиции, но не более 1000/8 = 125$ на позицию
+                    position_size = min(125.0, base_position_size * position_multiplier)
+                else:
+                    # Если недостаточно данных, используем базовый размер
+                    position_size = 25.0
+                
+                # Покупаем акции на рассчитанную сумму
+                qty = position_size / price
+                self.inventory.append((price, qty, position_size))  # Сохраняем также размер позиции в долларах
+                
                 # Записываем факт совершения сделки
                 self.last_action_step = self.current_step
                 # Увеличиваем счетчик сделок
@@ -249,7 +329,8 @@ class TradingEnv(gym.Env):
         elif action == 2:  # SELL
             # SELL
             if self.inventory:
-                bought_price, qty = self.inventory.pop(0)
+                # Извлекаем первую позицию из инвентаря (FIFO)
+                bought_price, qty, position_size = self.inventory.pop(0)
                 profit = (price - bought_price) * qty
                 cost = self.commission * (price * qty + bought_price * qty)
                 net = profit - cost
@@ -260,18 +341,22 @@ class TradingEnv(gym.Env):
                 # Увеличиваем счетчик сделок
                 self.trade_count += 1
             else:
-                # Если нечего продавать, применяем штраф за бездействие
-                reward -= self.hold_penalty
+                # Штраф за попытку продать без позиций
+                reward -= 1.0 * self.hold_penalty
         
         # carry cost per item in inventory
         reward -= self.carry_cost * len(self.inventory)
         
-        # mark-to-market reward for inventory due to price change
-        if self.current_step < len(self.prices) - 1 and self.inventory:
-            next_step = min(self.current_step + 1, len(self.prices) - 1)
-            next_price = float(self.prices[next_step])
-            mtm = sum((next_price - price) * qty for price, qty in self.inventory)
-            reward += mtm
+        # update state
+        self.current_step += 1
+        
+        # Calculate MTM P&L for observation
+        next_price = self.prices[min(self.current_step, len(self.prices) - 1)]
+        mtm = sum((next_price - price) * qty for price, qty, _ in self.inventory)
+        
+        # Calculate inventory value for observation
+        inventory_value = sum(qty for _, qty, _ in self.inventory)
+        reward += mtm
             
         # update risk metrics
         self.rewards.append(reward)
@@ -295,7 +380,7 @@ class TradingEnv(gym.Env):
             # Проверяем, что индекс не выходит за границы массива
             safe_step = min(self.current_step, len(self.prices) - 1)
             final_price = float(self.prices[safe_step])
-            for bought_price, qty in self.inventory:
+            for bought_price, qty, position_size in self.inventory:
                 profit = (final_price - bought_price) * qty
                 cost = self.commission * (final_price * qty + bought_price * qty)
                 net = profit - cost
@@ -314,8 +399,8 @@ class TradingEnv(gym.Env):
         # extend state with inventory info
         inv_count_norm = len(self.inventory) / self.max_inventory
         if self.inventory:
-            total_qty = sum(qty for _, qty in self.inventory)
-            avg_price = sum(bp * qty for bp, qty in self.inventory) / total_qty
+            total_qty = sum(qty for _, qty, _ in self.inventory)
+            avg_price = sum(bp * qty for bp, qty, _ in self.inventory) / total_qty
             # Используем безопасный индекс для текущего шага
             safe_step = min(self.current_step, len(self.prices) - 1)
             current_price = float(self.prices[safe_step])

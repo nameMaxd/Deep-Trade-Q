@@ -273,23 +273,28 @@ def main(stock, window_size=47, batch_size=32, ep_count=50, strategy="t-dqn", mo
         n_actions = train_env.action_space.shape[0]
         action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=td3_noise_sigma * np.ones(n_actions))
         
-        # Initialize TD3 с параметрами для предотвращения переобучения
+        # Initialize TD3 с параметрами для стабильного обучения и предотвращения переобучения
         model = TD3(
             'MlpPolicy', 
             train_env, 
             action_noise=action_noise, 
             verbose=1,
             tensorboard_log=tb_dir,
-            learning_rate=0.0005,  # Уменьшаем скорость обучения для лучшей обобщаемости
-            buffer_size=20000,    # Увеличиваем буфер для лучшего обучения
-            batch_size=128,       # Увеличиваем размер батча для стабильности
-            train_freq=10,        # Чаще обучаем для лучшего обобщения
-            gradient_steps=8,     # Больше шагов градиентного спуска для лучшего обучения
+            learning_rate=0.0003,  # Еще больше уменьшаем скорость обучения для стабильности
+            buffer_size=50000,    # Увеличиваем буфер для лучшего обучения
+            batch_size=256,       # Увеличиваем размер батча для стабильности
+            train_freq=(5, 'step'),  # Обучаем каждые 5 шагов для стабильности
+            gradient_steps=5,     # Меньше шагов градиентного спуска для стабильности
+            learning_starts=1000,  # Начинаем обучение после накопления достаточного количества опыта
+            tau=0.005,            # Медленнее обновляем целевые сети для стабильности
+            policy_delay=2,       # Реже обновляем политику для стабильности
+            target_policy_noise=0.2,  # Уменьшаем шум для стабильности
+            target_noise_clip=0.5,    # Ограничиваем шум для стабильности
             policy_kwargs={
                 'activation_fn': torch.nn.ReLU,  # Используем ReLU для лучшего обучения
                 'net_arch': {
-                    'pi': [64, 64, 32],  # Архитектура политики (actor)
-                    'qf': [128, 64, 32]  # Архитектура Q-функции (critic)
+                    'pi': [128, 64, 32],  # Более широкая архитектура политики (actor)
+                    'qf': [256, 128, 64]  # Более широкая архитектура Q-функции (critic)
                 }
             }
         )

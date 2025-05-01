@@ -6,12 +6,12 @@ from .ops import get_state
 class TradingEnv(gym.Env):
     metadata = {"render.modes": ["human"]}
 
-    def __init__(self, prices, volumes, window_size=47, commission=0.001, max_inventory=8, carry_cost=0.0001, min_trade_value=10.0, min_v=None, max_v=None, risk_lambda=0.1, drawdown_lambda=0.1, dual_phase=True):
+    def __init__(self, prices, volumes, window_size=47, commission=0.001, min_trade_value=1000.0, max_inventory=8, carry_cost=0.0001, min_v=None, max_v=None, risk_lambda=0.1, drawdown_lambda=0.1, dual_phase=True):
         super().__init__()
         self.prices = prices
         self.volumes = volumes
         # position limits and holding costs
-        self.max_inventory = max_inventory
+        self.max_inventory = max_inventory  # Максимальное количество позиций ограничено до 8
         self.carry_cost = carry_cost
         # global normalization bounds override
         self.global_min_v = min_v
@@ -102,22 +102,81 @@ class TradingEnv(gym.Env):
         prev_price = self.prices[max(0, min(self.current_step - 1, len(self.prices) - 1))]
         price_change = (current_price - prev_price) / prev_price
         
-        # ЭКСТРЕМАЛЬНО агрессивное вознаграждение за действия
+        # Улучшенная система вознаграждений для более точного следования тренду
+        # Анализируем тренд цены за последние 10 шагов для более стабильного определения тренда
+        trend_window_short = 5  # Короткий тренд (5 шагов)
+        trend_window_long = 10   # Длинный тренд (10 шагов)
+        
+        # Короткий тренд (для быстрых решений)
+        start_idx_short = max(0, self.current_step - trend_window_short)
+        price_window_short = self.prices[start_idx_short:self.current_step + 1]
+        
+        # Длинный тренд (для стратегических решений)
+        start_idx_long = max(0, self.current_step - trend_window_long)
+        price_window_long = self.prices[start_idx_long:self.current_step + 1]
+        
+        # Определяем направление короткого тренда
+        if len(price_window_short) > 1:
+            trend_short = np.polyfit(np.arange(len(price_window_short)), price_window_short, 1)[0]
+            trend_strength_short = abs(trend_short) / np.mean(price_window_short) * 100
+        else:
+            trend_short = 0
+            trend_strength_short = 0
+        
+        # Определяем направление длинного тренда
+        if len(price_window_long) > 1:
+            trend_long = np.polyfit(np.arange(len(price_window_long)), price_window_long, 1)[0]
+            trend_strength_long = abs(trend_long) / np.mean(price_window_long) * 100
+        else:
+            trend_long = 0
+            trend_strength_long = 0
+        
+        # Проверяем, совпадают ли направления трендов (более надежный сигнал)
+        trends_aligned = (trend_short > 0 and trend_long > 0) or (trend_short < 0 and trend_long < 0)
+        
+        # Базовые вознаграждения за действия
         if action == 1:  # Покупка
-            # Огромное вознаграждение за любую покупку для стимулирования торговли
-            step_reward = 10.0
-            # Дополнительный бонус за покупку при росте цены
-            if price_change > 0:
-                step_reward += 5.0 + price_change * 500
+            # Базовое вознаграждение за активную торговлю
+            step_reward = 0.5
+            
+            # Вознаграждение за покупку в соответствии с трендом
+            if trend_long > 0:  # Восходящий долгосрочный тренд - хорошо для покупки
+                # Больше вознаграждение, если оба тренда совпадают
+                if trends_aligned:
+                    step_reward += 2.0 + min(trend_strength_long, 10.0) / 5.0
+                else:
+                    step_reward += 1.0 + min(trend_strength_long, 10.0) / 10.0
+            else:  # Нисходящий долгосрочный тренд - плохо для покупки
+                # Меньше штраф, если короткий тренд положительный (возможный разворот)
+                if trend_short > 0:
+                    step_reward -= 0.3
+                else:
+                    step_reward -= 1.0 + min(trend_strength_long, 10.0) / 20.0
+            
         elif action == 2:  # Продажа
-            # Огромное вознаграждение за любую продажу для стимулирования торговли
-            step_reward = 10.0
-            # Дополнительный бонус за продажу при падении цены
-            if price_change < 0:
-                step_reward += 5.0 - price_change * 500
+            # Базовое вознаграждение за активную торговлю
+            step_reward = 0.5
+            
+            # Вознаграждение за продажу в соответствии с трендом
+            if trend_long < 0:  # Нисходящий долгосрочный тренд - хорошо для продажи
+                # Больше вознаграждение, если оба тренда совпадают
+                if trends_aligned:
+                    step_reward += 2.0 + min(trend_strength_long, 10.0) / 5.0
+                else:
+                    step_reward += 1.0 + min(trend_strength_long, 10.0) / 10.0
+            else:  # Восходящий долгосрочный тренд - плохо для продажи
+                # Меньше штраф, если короткий тренд отрицательный (возможный разворот)
+                if trend_short < 0:
+                    step_reward -= 0.3
+                else:
+                    step_reward -= 1.0 + min(trend_strength_long, 10.0) / 20.0
+            
         else:  # Держать
-            # Огромный штраф за бездействие, чтобы заставить агента торговать
-            step_reward = -10.0
+            # Штраф за бездействие, но меньше если нет чёткого тренда
+            if abs(trend_long) < 0.001 or not trends_aligned:
+                step_reward = -0.5  # Меньший штраф, если тренд неясен
+            else:
+                step_reward = -1.0  # Больший штраф при явном тренде
             
             # Увеличивающийся штраф, если давно не было действий
             if self.last_action_step is not None:

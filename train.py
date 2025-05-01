@@ -225,6 +225,29 @@ def main(stock, window_size=47, batch_size=32, ep_count=50, strategy="t-dqn", mo
         train_vols = train_df['Volume'].values
         val_prices = val_df['Adj Close'].values
         val_vols = val_df['Volume'].values
+        
+        # Загружаем дополнительный файл для валидации
+        val_file = 'data/GOOG_2024-07_2025-04.csv'
+        if os.path.exists(val_file):
+            print(f'Загрузка дополнительных данных для валидации: {val_file}')
+            # Загружаем и очищаем CSV валидации
+            val_raw_lines = []
+            with open(val_file, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.startswith('Date,'):
+                        val_raw_lines.append(line)
+                    else:
+                        m = pattern.search(line)
+                        if m:
+                            val_raw_lines.append(line[m.start():])
+            val_ext_df = pd.read_csv(io.StringIO('\n'.join(val_raw_lines)))
+            val_ext_df['Date'] = pd.to_datetime(val_ext_df['Date'])
+            val_ext_df = val_ext_df.sort_values('Date').reset_index(drop=True)
+            
+            # Используем эти данные для валидации
+            val_prices = val_ext_df['Adj Close'].values
+            val_vols = val_ext_df['Volume'].values
+            print(f'Загружены данные для валидации: {len(val_prices)} точек')
 
         # Создаем окружения для обучения и валидации
         train_env_raw = TradingEnv(train_prices, train_vols, window_size)
@@ -250,29 +273,40 @@ def main(stock, window_size=47, batch_size=32, ep_count=50, strategy="t-dqn", mo
         n_actions = train_env.action_space.shape[0]
         action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=td3_noise_sigma * np.ones(n_actions))
         
-        # Initialize TD3 с максимально оптимизированными параметрами для скорости
+        # Initialize TD3 с параметрами для предотвращения переобучения
         model = TD3(
             'MlpPolicy', 
             train_env, 
             action_noise=action_noise, 
             verbose=1,
             tensorboard_log=tb_dir,
-            learning_rate=0.001,  # Стандартная скорость обучения
-            buffer_size=10000,    # Меньший буфер для скорости
-            batch_size=64,        # Меньший размер батча для скорости
-            train_freq=20,        # Обучаем реже для ускорения
-            gradient_steps=4,     # Минимальное количество шагов градиентного спуска
+            learning_rate=0.0005,  # Уменьшаем скорость обучения для лучшей обобщаемости
+            buffer_size=20000,    # Увеличиваем буфер для лучшего обучения
+            batch_size=128,       # Увеличиваем размер батча для стабильности
+            train_freq=10,        # Чаще обучаем для лучшего обобщения
+            gradient_steps=8,     # Больше шагов градиентного спуска для лучшего обучения
             policy_kwargs={
-                'net_arch': [32, 32]  # Очень маленькая сеть для максимальной скорости
+                'activation_fn': torch.nn.ReLU,  # Используем ReLU для лучшего обучения
+                'net_arch': {
+                    'pi': [64, 64, 32],  # Архитектура политики (actor)
+                    'qf': [128, 64, 32]  # Архитектура Q-функции (critic)
+                }
             }
         )
         
         # Передаем оригинальные окружения для визуализации
         visual_cb = VisualizeCallback(train_env, val_env, model, train_env_raw, val_env_raw, total_timesteps=td3_timesteps)
         
-        # Запускаем обучение
-        print("Запуск обучения TD3...")
-        model.learn(total_timesteps=td3_timesteps, callback=visual_cb)
+        # Запускаем обучение в несколько эпизодов
+        print("Запуск обучения TD3 в несколько эпизодов...")
+        
+        # Увеличиваем количество эпизодов обучения для лучшего результата
+        num_episodes = 10  # Увеличиваем с 5 до 10 эпизодов
+        timesteps_per_episode = td3_timesteps // num_episodes
+        
+        for episode in range(1, num_episodes + 1):
+            print(f"\n=== Эпизод {episode}/{num_episodes} ===")
+            model.learn(total_timesteps=timesteps_per_episode, callback=visual_cb, reset_num_timesteps=False)
         model.save(f"{td3_save_name}")
         
         # Сохраняем график наград из логов Monitor

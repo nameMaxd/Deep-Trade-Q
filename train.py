@@ -37,6 +37,8 @@ import coloredlogs
 import os
 import sys
 import traceback
+import numpy as np
+import pandas as pd
 
 # Включаем отладочный вывод
 print("=== Запуск скрипта train.py ===")
@@ -77,25 +79,31 @@ try:
     import io
     import re
     import numpy as np
-    from docopt import docopt
     import pandas as pd
     import logging
     from tqdm import tqdm
     import matplotlib.pyplot as plt
-    print("Базовые библиотеки загружены")
+    # Делаем torch доступным глобально
+    global torch
+    try:
+        import torch
+        # Настройка PyTorch для использования CPU
+        if force_cpu:
+            torch.set_num_threads(os.cpu_count())  # Максимально эффективно используем CPU
+        print("PyTorch успешно загружен")
+    except ImportError:
+        print("Ошибка импорта PyTorch")
     
-    # Настройка PyTorch для использования CPU
-    import torch
-    if force_cpu:
-        torch.set_num_threads(os.cpu_count())  # Максимально эффективно используем CPU
-    print("PyTorch успешно загружен")
-    
-    # Загружаем Stable-Baselines3 и другие библиотеки
-    from stable_baselines3 import TD3
-    from stable_baselines3.common.noise import NormalActionNoise
-    from stable_baselines3.common.monitor import Monitor
-    from stable_baselines3.common.callbacks import BaseCallback
-    print("Stable-Baselines3 успешно загружен")
+    # Импортируем модули Stable-Baselines3
+    try:
+        from stable_baselines3 import TD3
+        from stable_baselines3.common.noise import NormalActionNoise
+        from stable_baselines3.common.monitor import Monitor
+        from stable_baselines3.common.vec_env import DummyVecEnv, VecNormalize
+        print("Stable-Baselines3 успешно загружен")
+    except ImportError as e:
+        print(f"Ошибка импорта Stable-Baselines3: {e}")
+        sys.exit(1)
     
     # Загружаем модули проекта
     from trading_bot.env import TradingEnv
@@ -118,12 +126,15 @@ try:
     )
     print("Утилиты успешно загружены")
     
-    # Configure multi-core usage
-    os.environ['OMP_NUM_THREADS'] = str(os.cpu_count())
-    os.environ['MKL_NUM_THREADS'] = str(os.cpu_count())
-    tf.config.threading.set_intra_op_parallelism_threads(os.cpu_count())
-    tf.config.threading.set_inter_op_parallelism_threads(os.cpu_count())
-    print("Многопоточность настроена")
+    # Configure multi-core usage - оптимизируем для процессора
+    import multiprocessing
+    num_physical_cores = multiprocessing.cpu_count()
+    os.environ['OMP_NUM_THREADS'] = str(num_physical_cores)
+    os.environ['MKL_NUM_THREADS'] = str(num_physical_cores)
+    # Используем все физические ядра для максимальной производительности
+    tf.config.threading.set_inter_op_parallelism_threads(num_physical_cores)
+    tf.config.threading.set_intra_op_parallelism_threads(num_physical_cores)
+    print(f"Многопоточность настроена на {num_physical_cores} ядер")
 except Exception as e:
     print(f"Ошибка при загрузке утилит или настройке многопоточности: {e}")
     traceback.print_exc()
@@ -135,19 +146,19 @@ def save_window_size(model_path, window_size):
     with open(fname, "w") as f:
         f.write(str(window_size))
 
-def main(stock, window_size=47, batch_size=32, ep_count=50,
-         strategy="t-dqn", model_name=None, pretrained=False,
-         debug=False, target_update=100,
-         td3_timesteps=100000, td3_noise_sigma=1.0, td3_save_name='td3_model'):
-    """ Finetune the stock trading bot on a large interval (2019-01-01 — 2024-06-30).
-    Logs each epoch to train_finetune.log, uses tqdm for progress.
-    """
+def main(stock, window_size=47, batch_size=32, ep_count=50, strategy="t-dqn", model_name=None, pretrained=False, debug=False, target_update=100, td3_timesteps=100000, td3_noise_sigma=1.0, td3_save_name='td3_model'):
+    # Используем глобальные библиотеки
+    global pd, np
+    # Импортируем torch непосредственно в функции main
+    import torch
+    
     print("=== ЗАПУСК ФУНКЦИИ MAIN ===")
-    print(f"Полученные параметры:")
+    print("Полученные параметры:")
     print(f"  stock={stock}")
     print(f"  window_size={window_size}")
-    print(f"  strategy={strategy}")
-    print(f"  td3_timesteps={td3_timesteps}")
+    if strategy == "td3":
+        print(f"  strategy={strategy}")
+        print(f"  td3_timesteps={td3_timesteps}")
 
     # Настраиваем логирование в файл
     logging.basicConfig(filename="train_finetune.log", filemode="w", level=logging.INFO,
@@ -239,9 +250,22 @@ def main(stock, window_size=47, batch_size=32, ep_count=50,
         n_actions = train_env.action_space.shape[0]
         action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=td3_noise_sigma * np.ones(n_actions))
         
-        # Initialize TD3 with TensorBoard logging
-        model = TD3('MlpPolicy', train_env, action_noise=action_noise, verbose=1,
-                    tensorboard_log=tb_dir)
+        # Initialize TD3 с максимально оптимизированными параметрами для скорости
+        model = TD3(
+            'MlpPolicy', 
+            train_env, 
+            action_noise=action_noise, 
+            verbose=1,
+            tensorboard_log=tb_dir,
+            learning_rate=0.001,  # Стандартная скорость обучения
+            buffer_size=10000,    # Меньший буфер для скорости
+            batch_size=64,        # Меньший размер батча для скорости
+            train_freq=20,        # Обучаем реже для ускорения
+            gradient_steps=4,     # Минимальное количество шагов градиентного спуска
+            policy_kwargs={
+                'net_arch': [32, 32]  # Очень маленькая сеть для максимальной скорости
+            }
+        )
         
         # Передаем оригинальные окружения для визуализации
         visual_cb = VisualizeCallback(train_env, val_env, model, train_env_raw, val_env_raw, total_timesteps=td3_timesteps)
@@ -250,18 +274,38 @@ def main(stock, window_size=47, batch_size=32, ep_count=50,
         print("Запуск обучения TD3...")
         model.learn(total_timesteps=td3_timesteps, callback=visual_cb)
         model.save(f"{td3_save_name}")
-        # Plot training reward progression from Monitor logs
-        import matplotlib.pyplot as plt
-        df = pd.read_csv(os.path.join(monitor_dir, 'monitor.csv'), comment='#')
-        plt.figure(figsize=(8,4))
-        plt.plot(df['l'], df['r'], label='Episode Reward')
-        plt.xlabel('Episode')
-        plt.ylabel('Reward')
-        plt.title('Training Reward Progression')
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(os.path.join(plots_dir, 'training_reward.png'))
-        plt.close()
+        
+        # Сохраняем график наград из логов Monitor
+        try:
+            import matplotlib.pyplot as plt
+            import pandas as pd
+            import numpy as np
+            
+            # Пытаемся прочитать логи из Monitor
+            monitor_file = os.path.join(monitor_dir, 'monitor.csv')
+            if os.path.exists(monitor_file):
+                # Читаем CSV с наградами
+                df = pd.read_csv(monitor_file, skiprows=1)  # Пропускаем строку с комментарием
+                
+                if 'r' in df.columns and len(df) > 0:
+                    # Преобразуем данные в numpy массивы для избежания ошибки с индексированием
+                    x = np.arange(len(df))
+                    y = df['r'].values  # Используем .values для получения numpy массива
+                    
+                    plt.figure(figsize=(12, 4))
+                    plt.plot(x, y, label='Episode Reward')
+                    plt.xlabel('Episode')
+                    plt.ylabel('Reward')
+                    plt.title(f'TD3 Training Rewards - {stock}')
+                    plt.legend()
+                    plt.savefig(os.path.join(plots_dir, 'rewards.png'))
+                    plt.close()
+                else:
+                    print("Нет данных о наградах в логах Monitor")
+            else:
+                print(f"Файл логов {monitor_file} не найден")
+        except Exception as e:
+            print(f"Ошибка при построении графика наград: {e}")
         return
     # если выбран TD3, запускаем Stable-Baselines3 TD3
     if strategy.lower() == 'td3':

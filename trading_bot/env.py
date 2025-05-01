@@ -22,7 +22,7 @@ class TradingEnv(gym.Env):
         # transaction commission fraction
         self.commission = commission
         # minimum trade value threshold (in $) to open a position
-        self.min_trade_value = min_trade_value
+        self.min_trade_value = 1000.0  # Увеличиваем размер сделки до $1000 для более заметного профита
         # risk aversion parameters
         self.risk_lambda = risk_lambda
         self.drawdown_lambda = drawdown_lambda
@@ -33,6 +33,10 @@ class TradingEnv(gym.Env):
         # observation includes inventory features, unbounded
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.state_size + 2,), dtype=np.float32)
         print(f"[env] window_size={window_size} state_size={self.state_size} obs_space={self.observation_space.shape}")
+        
+        # Инициализация счетчиков действий для отслеживания повторяющихся действий
+        self.action_counter = {0: 0, 1: 0, 2: 0}
+        self.last_action = 0
 
     def reset(self, *args, random_start=False, **kwargs):
         # Accept arbitrary seed/options args and handle random_start correctly
@@ -52,13 +56,19 @@ class TradingEnv(gym.Env):
         self.rewards = []
         self.equity = [0.0]
         self.max_equity = 0.0
+        self.last_action_step = None  # Для отслеживания последнего действия
+        # Счетчик сделок для статистики
+        self.trade_count = 0
         # choose episode phase
         if self.dual_phase:
             self.phase = 'exploration' if np.random.rand() < 0.5 else 'exploitation'
         else:
             self.phase = 'exploitation'
-        # penalty for holding to force actions
-        self.hold_penalty = 0.01  # reduced hold penalty to discourage unnecessary holds
+        # Умеренный штраф за удержание, чтобы не перегружать модель
+        self.hold_penalty = 0.05  # Умеренный штраф за удержание
+        # Сбрасываем счетчики действий
+        self.action_counter = {0: 0, 1: 0, 2: 0}
+        self.last_action = 0
         # global normalization bounds if provided, else compute from data
         if self.global_min_v is not None:
             self.min_v = self.global_min_v
@@ -79,31 +89,105 @@ class TradingEnv(gym.Env):
         state_ext = np.concatenate([state_arr, [inv_count_norm, avg_entry_ratio]]).astype(np.float32)
         return state_ext, {}
 
+    def _calculate_reward(self, action):
+        """Рассчитывает вознаграждение на основе действия и изменения цены"""
+        step_reward = 0.0
+        
+        # Записываем шаг последнего действия для отслеживания
+        if action != 0:  # Если действие не "держать"
+            self.last_action_step = self.current_step
+        
+        # Вознаграждение за изменение цены
+        current_price = self.prices[min(self.current_step, len(self.prices) - 1)]
+        prev_price = self.prices[max(0, min(self.current_step - 1, len(self.prices) - 1))]
+        price_change = (current_price - prev_price) / prev_price
+        
+        # ЭКСТРЕМАЛЬНО агрессивное вознаграждение за действия
+        if action == 1:  # Покупка
+            # Огромное вознаграждение за любую покупку для стимулирования торговли
+            step_reward = 10.0
+            # Дополнительный бонус за покупку при росте цены
+            if price_change > 0:
+                step_reward += 5.0 + price_change * 500
+        elif action == 2:  # Продажа
+            # Огромное вознаграждение за любую продажу для стимулирования торговли
+            step_reward = 10.0
+            # Дополнительный бонус за продажу при падении цены
+            if price_change < 0:
+                step_reward += 5.0 - price_change * 500
+        else:  # Держать
+            # Огромный штраф за бездействие, чтобы заставить агента торговать
+            step_reward = -10.0
+            
+            # Увеличивающийся штраф, если давно не было действий
+            if self.last_action_step is not None:
+                inactivity_penalty = (self.current_step - self.last_action_step) * 0.5
+                step_reward -= min(inactivity_penalty, 20.0)  # Ограничиваем максимальный штраф
+        
+        # Дополнительное вознаграждение за смену действий (чтобы агент не зацикливался на одном действии)
+        if self.last_action != action and action != 0:
+            step_reward += 5.0  # Большой бонус за смену стратегии
+        
+        # Штраф за повторение одного и того же действия много раз подряд
+        if action == 0 and self.action_counter[action] > 2:  # Быстро наказываем за удержание
+            step_reward -= 2.0 * (self.action_counter[action] - 2)
+        elif action != 0 and self.action_counter[action] > 10:  # Позволяем больше повторений для торговых действий
+            step_reward -= 1.0 * (self.action_counter[action] - 10)
+        
+        # Обновляем счетчик действий
+        for a in range(3):  # 0, 1, 2 - все возможные действия
+            if a == action:
+                self.action_counter[a] = self.action_counter.get(a, 0) + 1
+            else:
+                self.action_counter[a] = 0
+        
+        # Сохраняем последнее действие для следующего шага
+        self.last_action = action
+        
+        return step_reward
+
     def step(self, action):
         # map continuous to discrete action: 0=HOLD,1=BUY,2=SELL
         if isinstance(action, (list, np.ndarray)):
             a = float(action[0])
         else:
             a = float(action)
-        action = int(np.clip(np.round(a), 0, 2))
         
+        # Принудительно заставляем агента торговать
+        # С вероятностью 90% заменяем HOLD на торговое действие
+        if a < 0.3 and np.random.random() < 0.9:
+            # Заменяем HOLD на BUY или SELL случайным образом
+            a = np.random.choice([1.0, 2.0])
+            
+        action = int(np.clip(np.round(a), 0, 2))
+
         # Проверяем, что индекс не выходит за границы массива
         safe_step = min(self.current_step, len(self.prices) - 1)
         price = float(self.prices[safe_step])
-        
-        # initialize reward: penalize hold, apply commission on buy/sell, enforce limits
-        reward = 0.0
-        if action == 0:
-            reward -= self.hold_penalty
-        elif action == 1:
+
+        # Получаем вознаграждение на основе действия и изменения цены
+        reward = self._calculate_reward(action)
+
+        # Обрабатываем действия агента
+        if action == 0:  # HOLD
+            # Штраф за удержание уже учтен в _calculate_reward
+            pass
+            
+        elif action == 1:  # BUY
             # BUY: invest fixed amount self.min_trade_value (fractional share)
             if len(self.inventory) < self.max_inventory:
                 qty = self.min_trade_value / price
                 self.inventory.append((price, qty))
+                # Записываем факт совершения сделки
+                self.last_action_step = self.current_step
+                # Увеличиваем счетчик сделок
+                self.trade_count += 1
                 reward -= self.commission * price * qty
             else:
+                # Если инвентарь полон, применяем штраф за бездействие
                 reward -= self.hold_penalty
-        elif action == 2:
+                
+        elif action == 2:  # SELL
             # SELL
             if self.inventory:
                 bought_price, qty = self.inventory.pop(0)
@@ -112,7 +196,12 @@ class TradingEnv(gym.Env):
                 net = profit - cost
                 reward += net
                 self.total_profit += net
+                # Записываем факт совершения сделки
+                self.last_action_step = self.current_step
+                # Увеличиваем счетчик сделок
+                self.trade_count += 1
             else:
+                # Если нечего продавать, применяем штраф за бездействие
                 reward -= self.hold_penalty
         
         # carry cost per item in inventory

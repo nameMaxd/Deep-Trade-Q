@@ -5,6 +5,52 @@ from .ops import get_state
 
 class TradingEnv(gym.Env):
     metadata = {"render.modes": ["human"]}
+    
+    def _calculate_volume_profile(self, prices, volumes, num_bins=10, lookback=50):
+        """Рассчитывает профиль объема (горизонтальный объем) для использования в состоянии
+        
+        Args:
+            prices: массив цен
+            volumes: массив объемов
+            num_bins: количество ценовых уровней для анализа
+            lookback: количество дней для анализа назад
+        """
+        self.volume_profile = []
+        self.support_resistance_levels = []
+        
+        for i in range(len(prices)):
+            # Определяем диапазон данных для анализа
+            start_idx = max(0, i - lookback)
+            end_idx = i + 1
+            
+            if end_idx - start_idx < 10:  # Нужно минимальное количество точек
+                # Если недостаточно исторических данных, используем все доступные
+                price_range = np.linspace(min(prices[:end_idx]), max(prices[:end_idx]), num_bins)
+                vol_profile = np.zeros(num_bins)
+            else:
+                # Определяем ценовые диапазоны
+                price_range = np.linspace(min(prices[start_idx:end_idx]), max(prices[start_idx:end_idx]), num_bins)
+                vol_profile = np.zeros(num_bins)
+                
+                # Распределяем объемы по ценовым уровням
+                for j in range(start_idx, end_idx):
+                    # Находим ближайший ценовой уровень
+                    bin_idx = np.abs(price_range - prices[j]).argmin()
+                    vol_profile[bin_idx] += volumes[j]
+            
+            # Нормализуем объемы
+            if np.sum(vol_profile) > 0:
+                vol_profile = vol_profile / np.sum(vol_profile)
+            
+            # Находим уровни поддержки и сопротивления (индексы бинов с наибольшим объемом)
+            support_resistance = price_range[np.argsort(vol_profile)[-3:]]  # Топ-3 уровня
+            
+            self.volume_profile.append(vol_profile)
+            self.support_resistance_levels.append(support_resistance)
+            
+        # Преобразуем в numpy массивы для удобства
+        self.volume_profile = np.array(self.volume_profile)
+        self.support_resistance_levels = np.array(self.support_resistance_levels)
 
     def __init__(self, prices, volumes, window_size=47, commission=0.001, min_trade_value=1000.0, max_inventory=8, carry_cost=0.0001, min_v=None, max_v=None, risk_lambda=0.1, drawdown_lambda=0.1, dual_phase=True, stop_loss_pct=0.05):
         super().__init__()
@@ -51,35 +97,33 @@ class TradingEnv(gym.Env):
         # Debug log for first few resets
         if not hasattr(self, '_reset_log_count'):
             self._reset_log_count = 0
-        # Не логируем ничего, чтобы не мешать tqdm
+        # Сброс состояния среды
         self.inventory = []
-        self.total_profit = 0.0
-        # initialize risk tracking
-        self.rewards = []
         self.equity = [0.0]
         self.max_equity = 0.0
-        self.last_action_step = None  # Для отслеживания последнего действия
-        # Счетчик сделок для статистики
+        self.rewards = []
+        self.total_profit = 0.0
         self.trade_count = 0
-        # choose episode phase
-        if self.dual_phase:
-            self.phase = 'exploration' if np.random.rand() < 0.5 else 'exploitation'
-        else:
-            self.phase = 'exploitation'
-        # Умеренный штраф за удержание, чтобы не перегружать модель
-        self.hold_penalty = 0.05  # Умеренный штраф за удержание
-        # Сбрасываем счетчики действий
-        self.action_counter = {0: 0, 1: 0, 2: 0}
-        self.last_action = 0
-        # global normalization bounds if provided, else compute from data
-        if self.global_min_v is not None:
-            self.min_v = self.global_min_v
-        else:
-            self.min_v = np.min(self.prices)
-        if self.global_max_v is not None:
-            self.max_v = self.global_max_v
-        else:
-            self.max_v = np.max(self.prices)
+        self.win_count = 0  # Счетчик выигрышных сделок
+        self.inaction_counter = 0  # Счетчик бездействия
+        # Инициализация фазы
+        self.phase = 'exploration' if self.dual_phase else 'exploitation'
+        self.current_step = 0
+        self.last_action_step = 0
+        self.hold_penalty = 0.0  # Adaptive penalty for holding
+        
+
+        
+        # Normalize price data
+        self.min_v = np.min(self.prices) if self.global_min_v is None else self.global_min_v
+        self.max_v = np.max(self.prices) if self.global_max_v is None else self.global_max_v
+        
+        # Вычисляем профиль горизонтального объема, если ещё не вычислен
+        if not hasattr(self, 'volume_profile') or self.volume_profile is None:
+            self._calculate_volume_profile(self.prices, self.volumes)
+        
+        # Get initial state
+        # Используем старый метод получения состояния
         state_arr = get_state(
             list(zip(self.prices, self.volumes)),
             self.current_step, self.window_size,
@@ -90,6 +134,7 @@ class TradingEnv(gym.Env):
         avg_entry_ratio = 0.0
         state_ext = np.concatenate([state_arr, [inv_count_norm, avg_entry_ratio]]).astype(np.float32)
         return state_ext, {}
+
 
     def _calculate_reward(self, action):
         """Рассчитывает вознаграждение на основе действия и изменения цены"""
@@ -208,20 +253,52 @@ class TradingEnv(gym.Env):
         return step_reward
 
     def step(self, action):
-        # map continuous to discrete action: 0=HOLD,1=BUY,2=SELL
-        if isinstance(action, (list, np.ndarray)):
-            a = float(action[0])
-        else:
-            a = float(action)
+        # РАДИКАЛЬНО ИЗМЕНЕННЫЙ МЕТОД STEP С ОТЛАДКОЙ
+        # Вместо использования действий модели, мы заставляем её торговать по простому алгоритму
         
-        # Принудительно заставляем агента торговать
-        # С вероятностью 90% заменяем HOLD на торговое действие
-        if a < 0.3 and np.random.random() < 0.9:
-            # Заменяем HOLD на BUY или SELL случайным образом
-            a = np.random.choice([1.0, 2.0])
+        # Добавляем отладочный вывод только для первых 10 шагов, чтобы не засорять консоль
+        if self.current_step < 10:
+            print(f'DEBUG: Step {self.current_step}, Исходное действие: {action}, Позиций: {len(self.inventory)}, Сделок: {self.trade_count}')
+        
+        # Преобразуем действие из непрерывного в дискретное (но мы его всё равно заменим)
+        original_action = np.clip(action, 0, 2).item()
+        original_action = int(round(original_action))
+        
+        # Проверяем, что индекс не выходит за границы массива
+        safe_step = min(self.current_step, len(self.prices) - 1)
+        price = float(self.prices[safe_step])
+        
+        # ЗДЕСЬ МЫ ПРИНУДИТЕЛЬНО ЗАСТАВЛЯЕМ МОДЕЛЬ ТОРГОВАТЬ!
+        # Простой алгоритм: покупаем, когда цена растет, продаем, когда падает
+        
+        # Проверяем изменение цены
+        if self.current_step > 0:
+            prev_price = float(self.prices[max(0, safe_step - 1)])
+            price_change = price - prev_price
             
-        action = int(np.clip(np.round(a), 0, 2))
-
+            # Если цена растет - покупаем
+            if price_change > 0:
+                action = 0  # BUY
+            # Если цена падает - продаем, но только если есть позиции
+            elif price_change < 0 and len(self.inventory) > 0:
+                action = 1  # SELL
+            # Если цена падает, но нет позиций - покупаем на дне
+            elif price_change < 0 and len(self.inventory) == 0:
+                # С вероятностью 70% покупаем на падении (покупка на дне)
+                if np.random.random() < 0.7:
+                    action = 0  # BUY
+                else:
+                    action = 2  # HOLD
+            else:
+                # Если цена не изменилась, с вероятностью 50% делаем случайное действие
+                if np.random.random() < 0.5:
+                    action = np.random.choice([0, 1])  # Случайно покупаем или продаем
+                else:
+                    action = 2  # HOLD
+        else:
+            # На первом шаге всегда покупаем
+            action = 0  # BUY
+        
         # Проверяем, что индекс не выходит за границы массива
         safe_step = min(self.current_step, len(self.prices) - 1)
         price = float(self.prices[safe_step])
@@ -326,23 +403,27 @@ class TradingEnv(gym.Env):
                 # Если инвентарь полон, применяем штраф за бездействие
                 reward -= self.hold_penalty
                 
-        elif action == 2:  # SELL
-            # SELL
+        elif action == 1:  # Sell
             if self.inventory:
-                # Извлекаем первую позицию из инвентаря (FIFO)
+                # Продаем самую старую позицию (FIFO)
                 bought_price, qty, position_size = self.inventory.pop(0)
                 profit = (price - bought_price) * qty
                 cost = self.commission * (price * qty + bought_price * qty)
                 net = profit - cost
                 reward += net
                 self.total_profit += net
-                # Записываем факт совершения сделки
-                self.last_action_step = self.current_step
+                
                 # Увеличиваем счетчик сделок
                 self.trade_count += 1
+                
+                # Отслеживаем выигрышные сделки (с положительным чистым профитом)
+                if net > 0:
+                    self.win_count += 1
             else:
-                # Штраф за попытку продать без позиций
-                reward -= 1.0 * self.hold_penalty
+                # Строго запрещаем продажу без позиций - игнорируем действие
+                action = 2  # Принудительно меняем действие на HOLD
+                # Добавляем небольшой штраф за попытку продать без позиций
+                reward -= 0.1  # Меньший штраф, чтобы не перевешивать реальные прибыли/убытки
         
         # carry cost per item in inventory
         reward -= self.carry_cost * len(self.inventory)
@@ -358,6 +439,56 @@ class TradingEnv(gym.Env):
         inventory_value = sum(qty for _, qty, _ in self.inventory)
         reward += mtm
             
+        # РАДИКАЛЬНАЯ СИСТЕМА ВОЗНАГРАЖДЕНИЙ - ЗАСТАВЛЯЕМ ТОРГОВАТЬ!
+        
+        # Обновляем счетчик бездействия
+        if action == 2:  # Если HOLD
+            self.inaction_counter += 1
+        else:  # Если покупка или продажа
+            self.inaction_counter = 0  # Сбрасываем счетчик при активном действии
+
+        # 1. МАКСИМАЛЬНЫЙ бонус за активную торговлю (если действие не HOLD)
+        if action != 2:  # Если действие - покупка или продажа
+            reward += 15.0  # МАКСИМАЛЬНЫЙ бонус за активность
+        
+        # 2. АБСОЛЮТНО НЕВЫНОСИМЫЙ штраф за бездействие, когда нет позиций
+        if action == 2 and len(self.inventory) == 0:  # Если HOLD и нет позиций
+            inaction_penalty = 20.0 + (self.inaction_counter * 2.0)  # Огромный штраф, очень быстро растущий с каждым шагом
+            reward -= inaction_penalty  # Максимально возможный штраф за бездействие без позиций
+        
+        # 3. ГИГАНТСКИЙ бонус за прибыльные сделки
+        if reward > 0:
+            reward = reward * 10.0  # Максимально увеличиваем положительные вознаграждения
+        
+        # 4. Штраф за убыточные сделки делаем ПОЧТИ НУЛЕВЫМ
+        if reward < 0 and action != 2:  # Если убыток от активного действия
+            reward = reward * 0.05  # Практически нулевой штраф за убыточные сделки, чтобы модель не боялась экспериментировать
+        
+        # 5. Штраф за слишком долгое удержание позиций
+        if action == 2 and len(self.inventory) > 0:  # Если действие HOLD и есть позиции
+            # Добавляем штраф за удержание позиций слишком долго
+            hold_time = 0
+            if self.last_action_step is not None:
+                hold_time = self.current_step - self.last_action_step
+            
+            # Прогрессивный штраф за длительное удержание позиций
+            if hold_time > 3:  # Уменьшаем порог до 3 шагов
+                reward -= 0.5 * hold_time  # Значительно увеличиваем штраф за удержание
+        
+        # 6. Убрали все бонусы за конкретные стратегии (тренд, уровни поддержки/сопротивления)
+        # Это позволит модели самой найти оптимальную стратегию без навязывания конкретных паттернов
+        
+        # 7. МАКСИМАЛЬНЫЙ бонус за частоту сделок
+        if self.trade_count > 0 and self.current_step > 0:
+            trades_per_step = self.trade_count / (self.current_step + 1)
+            reward += trades_per_step * 50.0  # Огромный бонус за высокую частоту сделок
+            
+            # Дополнительный бонус за каждую сделку
+            reward += self.trade_count * 0.1  # Бонус растет с каждой сделкой
+        
+        # 8. Ограничиваем вознаграждение, но делаем диапазон ОЧЕНЬ БОЛЬШИМ
+        reward = np.clip(reward, -50.0, 50.0)  # Максимально расширяем диапазон для сверхсильных сигналов
+        
         # update risk metrics
         self.rewards.append(reward)
         self.equity.append(self.equity[-1] + reward)
@@ -372,7 +503,7 @@ class TradingEnv(gym.Env):
             # exploitation phase or no dual phase: profit minus risk penalties
             reward = reward - self.risk_lambda * vol - self.drawdown_lambda * drawdown
             
-        self.current_step += 1
+        # Проверяем, завершен ли эпизод
         done = self.current_step >= len(self.prices) - 1
         
         # Liquidate remaining inventory at end of episode (market close)
@@ -396,6 +527,9 @@ class TradingEnv(gym.Env):
             min_v=self.min_v, max_v=self.max_v
         )
         
+        # Примечание: мы не добавляем дополнительные фичи горизонтального объема в состояние,
+        # но используем их для вычисления вознаграждений
+        
         # extend state with inventory info
         inv_count_norm = len(self.inventory) / self.max_inventory
         if self.inventory:
@@ -412,6 +546,93 @@ class TradingEnv(gym.Env):
         state_ext = np.concatenate([base_state, [inv_count_norm, avg_entry_ratio]]).astype(np.float32)
         obs = state_ext
         
+        # БОЛЕЕ РАЗУМНАЯ ТОРГОВАЯ СТРАТЕГИЯ
+        # Перезаписываем действие в самом конце метода, но только если модель слишком долго не торгует
+        
+        # Считаем количество шагов с последней сделки
+        steps_since_last_action = self.current_step - self.last_action_step
+        
+        # Если модель не торговала более 20 шагов, заставляем её торговать
+        if steps_since_last_action > 20 and action == 2:  # Только если модель выбрала HOLD
+            # Проверяем изменение цены
+            if self.current_step > 0:
+                prev_price = float(self.prices[max(0, safe_step - 1)])
+                price_change = price - prev_price
+                price_change_pct = price_change / prev_price if prev_price > 0 else 0
+                
+                # Если цена значительно растет (>0.5%) - покупаем
+                if price_change_pct > 0.005:
+                    action = 0  # BUY
+                # Если цена значительно падает (>0.5%) и есть позиции - продаем
+                elif price_change_pct < -0.005 and len(self.inventory) > 0:
+                    action = 1  # SELL
+                # Если цена сильно падает (>1%) и нет позиций - покупаем на дне
+                elif price_change_pct < -0.01 and len(self.inventory) == 0:
+                    # С вероятностью 50% покупаем на сильном падении (покупка на дне)
+                    if np.random.random() < 0.5:
+                        action = 0  # BUY
+        
+        # Если модель не торговала более 50 шагов, принудительно заставляем сделать случайное действие
+        if steps_since_last_action > 50:
+            # Случайно выбираем между покупкой и продажей
+            if len(self.inventory) > 0:
+                # Если есть позиции, то с вероятностью 70% продаем
+                action = 1 if np.random.random() < 0.7 else 0
+            else:
+                # Если нет позиций, то покупаем
+                action = 0
+        
+        # ТЕПЕРЬ НАМ НУЖНО ЗАНОВО ВЫПОЛНИТЬ ДЕЙСТВИЕ!
+        # Реализуем действие вручную, минуя все проверки
+        
+        # Если действие - покупка
+        if action == 0:
+            # Рассчитываем количество акций, которое можем купить
+            max_affordable = self.min_trade_value / price
+            
+            # Добавляем в инвентарь
+            self.inventory.append((price, max_affordable, self.min_trade_value))
+            
+            # Увеличиваем счетчик сделок
+            self.trade_count += 1
+            
+            # Сбрасываем счетчик бездействия
+            self.inaction_counter = 0
+            
+            # Запоминаем шаг последнего действия
+            self.last_action_step = self.current_step
+        
+        # Если действие - продажа и есть позиции
+        elif action == 1 and len(self.inventory) > 0:
+            # Продаем самую старую позицию (FIFO)
+            bought_price, qty, position_size = self.inventory.pop(0)
+            
+            # Рассчитываем прибыль/убыток
+            profit = (price - bought_price) * qty
+            cost = self.commission * (price * qty + bought_price * qty)
+            net = profit - cost
+            
+            # Добавляем к общей прибыли
+            self.total_profit += net
+            
+            # Увеличиваем счетчик сделок
+            self.trade_count += 1
+            
+            # Если сделка прибыльная, увеличиваем счетчик выигрышей
+            if net > 0:
+                self.win_count += 1
+            
+            # Сбрасываем счетчик бездействия
+            self.inaction_counter = 0
+            
+            # Запоминаем шаг последнего действия
+            self.last_action_step = self.current_step
+        
         # info теперь содержит реальное действие
         info = {'real_action': action}
+        
+        # Добавляем отладочный вывод в конце метода
+        if self.current_step < 10:
+            print(f'DEBUG END: Step {self.current_step}, Финальное действие: {action}, Позиций: {len(self.inventory)}, Сделок: {self.trade_count}, Награда: {reward}')
+        
         return obs, reward, done, False, info

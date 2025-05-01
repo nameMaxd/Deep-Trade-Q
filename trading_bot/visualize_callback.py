@@ -94,21 +94,43 @@ class VisualizeCallback(BaseCallback):
             
             # Выводим статистику
             elapsed_time = time.time() - self.start_time
-            print(f"\n=== Статистика на шаге {self.n_calls}/{self.total_timesteps} ({elapsed_time:.1f} сек) ===")
-            print("--- ТРЕНИРОВОЧНЫЕ ДАННЫЕ ---")
+            print(f"=== Статистика на шаге {self.n_calls}/{self.total_timesteps} ({elapsed_time:.1f} сек) ===")
+            print(f"--- ТРЕНИРОВОЧНЫЕ ДАННЫЕ ---")
             print(f"Профит: ${train_stats['total_profit']:.2f} ({train_stats['profit_pct']:.2f}%)")
             print(f"Sharpe: {train_stats['sharpe']:.2f}")
-            print(f"Сделок: {train_stats['trades']}")
-            print(f"Max Drawdown: ${train_stats['max_drawdown']:.2f} ({train_stats['max_drawdown_pct']:.2f}%)")
-            print(f"Винрейт: {train_stats['win_rate']:.2f}%")
             
-            if val_stats is not None:
-                print("\n--- ВАЛИДАЦИОННЫЕ ДАННЫЕ ---")
+            # Показываем предупреждение, если сделок мало
+            if train_stats['trades'] < 10:
+                print(f"Сделок: {train_stats['trades']} [!!! МАЛО СДЕЛОК - СТАТИСТИКА НЕДОСТОВЕРНА !!!]")
+            else:
+                print(f"Сделок: {train_stats['trades']}")
+                
+            print(f"Max Drawdown: ${train_stats['max_drawdown']:.2f} ({train_stats['max_drawdown_pct']:.2f}%)")
+            
+            # Показываем винрейт только если достаточно сделок
+            if train_stats['trades'] < 5:
+                print(f"Винрейт: Недостаточно сделок для расчета")
+            else:
+                print(f"Винрейт: {train_stats['win_rate']:.2f}%")
+            
+            if val_stats:
+                print(f"\n--- ВАЛИДАЦИОННЫЕ ДАННЫЕ ---")
                 print(f"Профит: ${val_stats['total_profit']:.2f} ({val_stats['profit_pct']:.2f}%)")
                 print(f"Sharpe: {val_stats['sharpe']:.2f}")
-                print(f"Сделок: {val_stats['trades']}")
+                
+                # Показываем предупреждение, если сделок мало
+                if val_stats['trades'] < 10:
+                    print(f"Сделок: {val_stats['trades']} [!!! МАЛО СДЕЛОК - СТАТИСТИКА НЕДОСТОВЕРНА !!!]")
+                else:
+                    print(f"Сделок: {val_stats['trades']}")
+                    
                 print(f"Max Drawdown: ${val_stats['max_drawdown']:.2f} ({val_stats['max_drawdown_pct']:.2f}%)")
-                print(f"Винрейт: {val_stats['win_rate']:.2f}%")
+                
+                # Показываем винрейт только если достаточно сделок
+                if val_stats['trades'] < 5:
+                    print(f"Винрейт: Недостаточно сделок для расчета")
+                else:
+                    print(f"Винрейт: {val_stats['win_rate']:.2f}%")
             print("==================================\n")
             
             # Создаем графики только в конце обучения
@@ -229,26 +251,35 @@ class VisualizeCallback(BaseCallback):
                             max_drawdown = drawdown
                             max_drawdown_pct = drawdown_pct
                 
-                # Расчёт Sharpe Ratio
+                # Расчёт реалистичного Sharpe Ratio на основе сделок
                 sharpe = 0.0
-                if hasattr(trading_env, 'rewards') and len(trading_env.rewards) > 1:
-                    daily_returns = []
-                    for i in range(1, len(trading_env.equity)):
-                        if trading_env.equity[i-1] > 0:
-                            daily_return = (trading_env.equity[i] - trading_env.equity[i-1]) / trading_env.equity[i-1]
-                            daily_returns.append(daily_return)
-                    
-                    if len(daily_returns) > 1:
-                        mean_return = np.mean(daily_returns)
-                        std_return = np.std(daily_returns)
-                        if std_return > 0:
-                            sharpe = mean_return / std_return * np.sqrt(252)  # Аннуализированный Sharpe
+                if hasattr(trading_env, 'total_profit') and hasattr(trading_env, 'trade_count') and trading_env.trade_count > 5:
+                    # Используем прибыль на сделку и волатильность сделок
+                    if len(trading_env.rewards) > 1:
+                        # Считаем только реварды от сделок, а не от холда
+                        trade_rewards = []
+                        for i in range(len(trading_env.rewards)):
+                            if abs(trading_env.rewards[i]) > 0.1:  # Фильтруем маленькие реварды (холд)
+                                trade_rewards.append(trading_env.rewards[i])
+                        
+                        if len(trade_rewards) > 5:  # Нужно минимум 5 сделок для статистической значимости
+                            mean_return = np.mean(trade_rewards)
+                            std_return = np.std(trade_rewards)
+                            if std_return > 0:
+                                # Аннуализируем с учетом среднего количества сделок в год (252 дня)
+                                avg_trades_per_day = min(trading_env.trade_count / len(trading_env.rewards) * 252, 252)
+                                sharpe = (mean_return / std_return) * np.sqrt(avg_trades_per_day / 252)
                 
-                # Расчёт винрейта
+                # Расчёт винрейта по фактическим сделкам
                 win_rate = 0.0
-                if hasattr(trading_env, 'rewards') and len(trading_env.rewards) > 0:
-                    wins = sum(1 for r in trading_env.rewards if r > 0)
-                    win_rate = (wins / len(trading_env.rewards)) * 100 if len(trading_env.rewards) > 0 else 0
+                trade_count = trading_env.trade_count if hasattr(trading_env, 'trade_count') else 0
+                
+                # Если сделок меньше 5, считаем винрейт недостоверным
+                if trade_count < 5:
+                    win_rate = 0.0  # Недостаточно данных для достоверного расчета
+                elif hasattr(trading_env, 'win_count'):
+                    # Расчет по фактическим выигрышным сделкам
+                    win_rate = (trading_env.win_count / trade_count) * 100 if trade_count > 0 else 0
                 
                 return {
                     'total_profit': trading_env.total_profit,

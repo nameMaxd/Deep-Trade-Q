@@ -2,16 +2,15 @@ import random
 
 from collections import deque
 
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras import backend as K
-
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.models import load_model, clone_model
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.layers import Dropout, BatchNormalization, LSTM, Input, Reshape
-from tensorflow.keras.regularizers import l2
+# ===== УДАЛЯЕМ ВСЕ ИМПОРТЫ TENSORFLOW/KERAS ДЛЯ TD3 =====
+# import tensorflow as tf
+# from tensorflow.keras import backend as K
+# from tensorflow.keras.models import Sequential
+# from tensorflow.keras.models import load_model, clone_model
+# from tensorflow.keras.layers import Dense
+# from tensorflow.keras.optimizers import Adam
+# from tensorflow.keras.layers import Dropout, BatchNormalization, LSTM, Input, Reshape
+# from tensorflow.keras.regularizers import l2
 
 
 def huber_loss(y_true, y_pred, clip_delta=1.0):

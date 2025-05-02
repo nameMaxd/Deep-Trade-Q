@@ -20,6 +20,9 @@ def get_state(data, t, window_size, min_v=None, max_v=None):
     """Возвращает state размерности (window_size+3,) = (window_size-1 сигмоид + SMA+EMA+RSI + vol_ratio), все признаки в [0,1]"""
     d = t - window_size + 1
     block = data[d: t + 1] if d >= 0 else (-d) * [data[0]] + data[0: t + 1]
+    # fix: если длина блока < window_size, дублируем первый элемент
+    if len(block) < window_size:
+        block = [block[0]] * (window_size - len(block)) + block
     # separate price and volume
     prices = [p for p, v in block]
     volumes = [v for p, v in block]

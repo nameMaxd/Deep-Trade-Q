@@ -5,8 +5,6 @@ import logging
 import pandas as pd
 import numpy as np
 
-from tensorflow.keras import backend as K
-
 
 # Formats Position
 format_position = lambda price: ('-$' if price < 0 else '+$') + '{0:.2f}'.format(abs(price))
@@ -99,6 +97,8 @@ def switch_k_backend_device():
 
     Faster computation on CPU (if using tensorflow-gpu).
     """
+    # ===== УДАЛЯЕМ ВСЕ ИМПОРТЫ TENSORFLOW/KERAS ДЛЯ TD3 =====
+    # from tensorflow.keras import backend as K
     if K.backend() == "tensorflow":
         logging.debug("switching to TensorFlow for CPU")
         os.environ["CUDA_VISIBLE_DEVICES"] = "-1"

@@ -27,24 +27,23 @@ class TradingEnv(gym.Env):
         self.risk_lambda = risk_lambda
         self.drawdown_lambda = drawdown_lambda
         self.dual_phase = dual_phase
+        # Для TD3 используем непрерывное пространство действий [0, 1]
         self.action_space = spaces.Box(
-            low=np.array([0.0]), high=np.array([2.0]), shape=(1,), dtype=np.float32
+            low=np.array([0.0]), high=np.array([1.0]), shape=(1,), dtype=np.float32
         )
         # observation includes inventory features, unbounded
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.state_size,), dtype=np.float32)
 
-    def reset(self, *args, random_start=False, **kwargs):
-        # Accept arbitrary seed/options args and handle random_start correctly
-        super().reset(*args, **kwargs)
-        # Set starting step
+    def reset(self, *args, seed=None, options=None, random_start=False, **kwargs):
+        # Важно: возвращаем кортеж (observation, info)
+        # Это критично для совместимости с SB3 на Windows
+        super().reset(seed=seed)
         if random_start:
             self.current_step = np.random.randint(0, len(self.prices) - self.window_size - 1)
         else:
             self.current_step = 0
-        # Debug log for first few resets
         if not hasattr(self, '_reset_log_count'):
             self._reset_log_count = 0
-        # Не логируем ничего, чтобы не мешать tqdm
         self.inventory = []
         self.total_profit = 0.0
         # initialize risk tracking
@@ -58,7 +57,6 @@ class TradingEnv(gym.Env):
             self.phase = 'exploitation'
         # penalty for holding to force actions
         self.hold_penalty = 0.01  # reduced hold penalty to discourage unnecessary holds
-        # global normalization bounds if provided, else compute from data
         if self.global_min_v is not None:
             self.min_v = self.global_min_v
         else:
@@ -72,67 +70,110 @@ class TradingEnv(gym.Env):
             self.current_step, self.window_size,
             min_v=self.min_v, max_v=self.max_v
         )[0]
-        # extend state with inventory features (initially zero)
         inv_count_norm = 0.0
         avg_entry_ratio = 0.0
         state_ext = np.concatenate([state_arr, [inv_count_norm, avg_entry_ratio]]).astype(np.float32)
+        # Возвращаем кортеж (observation, info)
         return state_ext, {}
 
     def step(self, action):
-        # map continuous to discrete action: 0=HOLD,1=BUY,2=SELL
         if isinstance(action, (list, np.ndarray)):
             a = float(action[0])
         else:
             a = float(action)
-        action = int(np.clip(np.round(a), 0, 2))
+        
+        # Преобразуем непрерывное действие в дискретное
+        # 0.0-0.33 -> HOLD (0)
+        # 0.34-0.66 -> BUY (1)
+        # 0.67-1.0 -> SELL (2)
+        if a < 0.33:
+            action = 0  # HOLD
+        elif a < 0.66:
+            action = 1  # BUY
+        else:
+            action = 2  # SELL
+        
         price = float(self.prices[self.current_step])
-        # initialize reward: penalize hold, apply commission on buy/sell, enforce limits
         reward = 0.0
-        if action == 0:
-            reward -= self.hold_penalty
-        elif action == 1:
-            # BUY: invest fixed amount self.min_trade_value (fractional share)
+        
+        # Для отладки
+        action_taken = action
+        
+        # Штраф за бездействие - заставляем агента совершать сделки
+        if action == 0:  # HOLD
+            # Увеличиваем штраф за удержание с каждым шагом
+            hold_steps = getattr(self, 'consecutive_holds', 0) + 1
+            setattr(self, 'consecutive_holds', hold_steps)
+            # Экспоненциальный штраф за длительное удержание
+            reward -= self.hold_penalty * (1.0 + 0.01 * hold_steps)
+        else:
+            # Сбрасываем счетчик удержаний при активном действии
+            setattr(self, 'consecutive_holds', 0)
+        
+        if action == 1:  # BUY
             if len(self.inventory) < self.max_inventory:
                 qty = self.min_trade_value / price
                 self.inventory.append((price, qty))
+                reward += 0.5  # Значительный бонус за открытие позиции
                 reward -= self.commission * price * qty
             else:
+                # Если инвентарь полон, считаем как HOLD
+                action = 0
                 reward -= self.hold_penalty
-        elif action == 2:
-            # SELL
+        elif action == 2:  # SELL
             if self.inventory:
                 bought_price, qty = self.inventory.pop(0)
                 profit = (price - bought_price) * qty
                 cost = self.commission * (price * qty + bought_price * qty)
                 net = profit - cost
-                reward += net
+                
+                # Усиливаем сигнал награды для прибыльных сделок
+                if net > 0:
+                    reward += net * 3.0  # Утраиваем положительную прибыль
+                else:
+                    reward += net * 0.5  # Уменьшаем отрицательную прибыль
+                    
                 self.total_profit += net
             else:
-                reward -= self.hold_penalty
-        # carry cost per item in inventory
+                # Если нечего продавать, считаем как HOLD
+                action = 0
+                reward -= self.hold_penalty * 3  # Сильный штраф за попытку продать без позиций
+        
+        # Небольшой штраф за хранение позиций
         reward -= self.carry_cost * len(self.inventory)
-        # mark-to-market reward for inventory due to price change
+        
+        # Учитываем потенциальную прибыль/убыток от открытых позиций
         if self.current_step < len(self.prices) - 1 and self.inventory:
             next_price = float(self.prices[self.current_step + 1])
             mtm = sum((next_price - price) * qty for price, qty in self.inventory)
-            reward += mtm
+            
+            # Поощряем держать выигрышные позиции и закрывать проигрышные
+            if mtm > 0:
+                reward += mtm * 0.3  # Меньший вес для потенциальной прибыли
+            else:
+                reward += mtm * 0.1  # Еще меньший вес для потенциальных убытков
+        
         # update risk metrics
         self.rewards.append(reward)
         self.equity.append(self.equity[-1] + reward)
         self.max_equity = max(self.max_equity, self.equity[-1])
-        vol = float(np.std(self.rewards)) if len(self.rewards) > 1 else 0.0
-        drawdown = float(self.max_equity - self.equity[-1])
-        if self.dual_phase and self.phase == 'exploration':
-            # exploration phase: focus on risk minimization
-            reward = - self.risk_lambda * vol - self.drawdown_lambda * drawdown
-        else:
-            # exploitation phase or no dual phase: profit minus risk penalties
-            reward = reward - self.risk_lambda * vol - self.drawdown_lambda * drawdown
+        
+        # Упрощенная функция награды: Profit - λ⋅Risk
+        # Риск = стандартное отклонение доходности (волатильность)
+        vol = float(np.std(self.rewards[-20:]) if len(self.rewards) > 20 else 0.0)
+        
+        # Финальная награда: прибыль минус штраф за риск
+        reward = reward - self.risk_lambda * vol
+        
+        # ======= CRITICAL DEBUG BLOCK =========
+        # Убираем форсированный done, возвращаем обычную логику
+        done = self.current_step >= len(self.prices) - 2
         self.current_step += 1
-        done = self.current_step >= len(self.prices) - 1
         # Liquidate remaining inventory at end of episode (market close)
+        # Исправлено: не выходим за пределы массива
         if self.current_step >= len(self.prices) - 2 and self.inventory:
-            final_price = float(self.prices[self.current_step])
+            safe_step = min(self.current_step, len(self.prices) - 1)
+            final_price = float(self.prices[safe_step])
             for bought_price, qty in self.inventory:
                 profit = (final_price - bought_price) * qty
                 cost = self.commission * (final_price * qty + bought_price * qty)
@@ -157,6 +198,8 @@ class TradingEnv(gym.Env):
             avg_entry_ratio = 0.0
         state_ext = np.concatenate([base_state, [inv_count_norm, avg_entry_ratio]]).astype(np.float32)
         obs = state_ext
-        # info теперь содержит реальное действие
         info = {'real_action': action}
+        assert isinstance(obs, np.ndarray) and obs.dtype == np.float32, f"obs type/shape: {type(obs)}, {obs.dtype}, {obs.shape}"
+        assert isinstance(reward, float), f"reward type: {type(reward)}"
+        assert isinstance(done, bool), f"done type: {type(done)}"
         return obs, reward, done, False, info

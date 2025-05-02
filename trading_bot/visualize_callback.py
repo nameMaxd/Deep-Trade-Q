@@ -27,23 +27,33 @@ class VisualizeCallback(BaseCallback):
         if self.n_calls % self.eval_freq == 0:
             self.plot_count += 1
             # create train/val plots
-            self._make_plot(self.train_env, os.path.join(self.plots_dir, 'train', f'plot_{self.plot_count}.png'))
-            self._make_plot(self.val_env,   os.path.join(self.plots_dir, 'val',   f'plot_{self.plot_count}.png'))
+            try:
+                self._make_plot(self.train_env, os.path.join(self.plots_dir, 'train', f'plot_{self.plot_count}.png'))
+            except Exception as e:
+                print(f"[VisualizeCallback] Ошибка при построении train plot: {e}")
+            try:
+                self._make_plot(self.val_env,   os.path.join(self.plots_dir, 'val',   f'plot_{self.plot_count}.png'))
+            except Exception as e:
+                print(f"[VisualizeCallback] Ошибка при построении val plot: {e}")
             # create trades table for validation
-            trades_csv = os.path.join(self.plots_dir, 'val', f'trades_{self.plot_count}.csv')
-            self._make_table(self.val_env, trades_csv)
+            try:
+                trades_csv = os.path.join(self.plots_dir, 'val', f'trades_{self.plot_count}.csv')
+                self._make_table(self.val_env, trades_csv)
+            except Exception as e:
+                print(f"[VisualizeCallback] Ошибка при построении trades table: {e}")
         return True
 
     def _make_plot(self, env, save_path):
         # gather price and actions
-        prices = list(env.prices)
+        real_env = getattr(env, 'env', env)  # поддержка Monitor
+        prices = list(getattr(real_env, 'prices', []))
         obs, _ = env.reset()
         buy_x, buy_y, sell_x, sell_y = [], [], [], []
         step = 0
         while True:
             action, _ = self.model.predict(obs, deterministic=True)
             obs, _, done, _, info = env.step(action)
-            price = prices[env.current_step]
+            price = prices[real_env.current_step] if prices else None
             if info.get('real_action') == 1:
                 buy_x.append(step); buy_y.append(price)
             elif info.get('real_action') == 2:
@@ -53,9 +63,12 @@ class VisualizeCallback(BaseCallback):
                 break
         # plot
         plt.figure(figsize=(10, 4))
-        plt.plot(prices[:step], label='price')
-        plt.scatter(buy_x, buy_y, marker='^', color='g', label='BUY')
-        plt.scatter(sell_x, sell_y, marker='v', color='r', label='SELL')
+        if prices:
+            plt.plot(prices[:step], label='price')
+        if buy_x:
+            plt.scatter(buy_x, buy_y, marker='^', color='g', label='BUY')
+        if sell_x:
+            plt.scatter(sell_x, sell_y, marker='v', color='r', label='SELL')
         plt.legend(loc='best')
         plt.title(os.path.basename(save_path))
         plt.tight_layout()

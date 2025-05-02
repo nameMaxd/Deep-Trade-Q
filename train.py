@@ -62,10 +62,13 @@ os.environ['MKL_NUM_THREADS'] = str(os.cpu_count())
 tf.config.threading.set_intra_op_parallelism_threads(os.cpu_count())
 tf.config.threading.set_inter_op_parallelism_threads(os.cpu_count())
 
-def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
+# Импортируем конфигурацию
+from config import ENV_CONFIG, TD3_CONFIG, VIS_CONFIG
+
+def main(stock, window_size=ENV_CONFIG["window_size"], batch_size=32, ep_count=50,
          strategy="t-dqn", model_name=None, pretrained=False,
          debug=False, model_type='dense', target_update=100,
-         td3_timesteps=100000, td3_noise_sigma=1.0, td3_save_name='td3_model'):
+         td3_timesteps=TD3_CONFIG["timesteps"], td3_noise_sigma=TD3_CONFIG["noise_sigma"], td3_save_name='td3_model'):
     """ Finetune the stock trading bot on a large interval (2019-01-01 — 2024-06-30).
     Logs each epoch to train_finetune.log, uses tqdm for progress.
     """
@@ -82,11 +85,17 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         log_file = "train_finetune.log"
     
     # Очищаем лог-файл перед началом
-    with open(log_file, 'w') as f:
+    with open(log_file, 'w', encoding='utf-8') as f:
         f.write("")
     
     print(f"Лог обучения будет писаться в {log_file}")
-
+    
+    # Устанавливаем кодировку вывода
+    import sys
+    import locale
+    locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
+    sys.stdout.reconfigure(encoding='utf-8')
+    
     # === TD3 TRAINING BLOCK ===
     if strategy == 'td3':
         import numpy as np
@@ -99,6 +108,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         from tqdm import tqdm
         import time
         import os
+        import torch.nn as nn  # Для активационных функций
         
         # Создаем директории для моделей и графиков
         os.makedirs('models', exist_ok=True)
@@ -124,8 +134,39 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         val_volumes = val_data['Volume'].values
         
         # Создаем среды
-        train_env = TradingEnv(train_prices, train_volumes, window_size)
-        val_env = TradingEnv(val_prices, val_volumes, window_size)
+        train_env = TradingEnv(
+            prices=train_prices,
+            volumes=train_volumes,
+            window_size=window_size,
+            commission=ENV_CONFIG["commission"],
+            max_inventory=ENV_CONFIG["max_inventory"],
+            carry_cost=ENV_CONFIG["carry_cost"],
+            min_trade_value=ENV_CONFIG["min_trade_value"],
+            risk_lambda=ENV_CONFIG["risk_lambda"],
+            drawdown_lambda=ENV_CONFIG["drawdown_lambda"],
+            dual_phase=ENV_CONFIG["dual_phase"],
+            max_episode_steps=ENV_CONFIG["max_episode_steps"],
+            hold_penalty=ENV_CONFIG["hold_penalty"],
+            profit_bonus=ENV_CONFIG["profit_bonus"],
+            loss_penalty=ENV_CONFIG["loss_penalty"]
+        )
+        
+        val_env = TradingEnv(
+            prices=val_prices,
+            volumes=val_volumes,
+            window_size=window_size,
+            commission=ENV_CONFIG["commission"],
+            max_inventory=ENV_CONFIG["max_inventory"],
+            carry_cost=ENV_CONFIG["carry_cost"],
+            min_trade_value=ENV_CONFIG["min_trade_value"],
+            risk_lambda=ENV_CONFIG["risk_lambda"],
+            drawdown_lambda=ENV_CONFIG["drawdown_lambda"],
+            dual_phase=ENV_CONFIG["dual_phase"],
+            max_episode_steps=ENV_CONFIG["max_episode_steps"],
+            hold_penalty=ENV_CONFIG["hold_penalty"],
+            profit_bonus=ENV_CONFIG["profit_bonus"],
+            loss_penalty=ENV_CONFIG["loss_penalty"]
+        )
         
         # Сохраняем оригинальные цены для расчета прибыли
         orig_train_prices = train_prices
@@ -174,7 +215,8 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                     # Закрываем текущий прогресс-бар перед оценкой
                     self.pbar.close()
                     
-                    self._log(f"=== Оценка #{self.eval_count} (шаг {self.n_calls}) ===")
+                    timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+                    self._log(f"{timestamp} === Оценка #{self.eval_count} (шаг {self.n_calls}) ===")
                     
                     # Оценка на тренировочных данных (только 2 эпизода для ускорения)
                     train_rewards, train_buys, train_sells, train_holds, train_profits, train_sharpe = self._evaluate_env(
@@ -184,11 +226,15 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                     val_rewards, val_buys, val_sells, val_holds, val_profits, val_sharpe = self._evaluate_env(
                         self.val_env, self.val_prices, n_episodes=2, is_train=False)
                     
+                    self._log(f"{timestamp} Результаты оценки #{self.eval_count}:")
+                    self._log(f"Train: profit=${train_profits:.2f}, sharpe={train_sharpe:.4f}, buys={train_buys}, sells={train_sells}, holds={train_holds}")
+                    self._log(f"Val  : profit=${val_profits:.2f}, sharpe={val_sharpe:.4f}, buys={val_buys}, sells={val_sells}, holds={val_holds}")
+                    
                     # Сохранение лучшей модели по Sharpe Ratio
                     if val_sharpe > self.best_mean_reward:
                         self.best_mean_reward = val_sharpe
                         self.model.save(f"models/{td3_save_name}_best")
-                        self._log(f"Новая лучшая модель сохранена с val_sharpe={val_sharpe:.2f}")
+                        self._log(f"{timestamp} Новая лучшая модель сохранена с val_sharpe={val_sharpe:.4f}")
                     
                     # Устанавливаем следующий шаг для оценки
                     self.next_eval_step += self.eval_freq
@@ -198,10 +244,10 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                         total=td3_timesteps, 
                         initial=self.n_calls,
                         desc="TD3 Training",
-                        bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]',
+                        bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]',
                         postfix={
-                            'train_profit': f"{train_profits:.2f}", 
-                            'val_profit': f"{val_profits:.2f}", 
+                            'train_profit': f"${train_profits:.2f}", 
+                            'val_profit': f"${val_profits:.2f}", 
                             'train_sharpe': f"{train_sharpe:.2f}", 
                             'val_sharpe': f"{val_sharpe:.2f}"
                         }
@@ -228,10 +274,16 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                 all_returns = []  # Для расчета Sharpe Ratio
                 episode_profits = []  # Для отслеживания прибыли по эпизодам
                 
+                env_type = "train" if is_train else "val"
+                timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+                self._log(f"{timestamp} Начало оценки на {env_type} среде, {n_episodes} эпизодов")
+                self._log(f"Диапазон цен в {env_type}: мин=${min(env.prices):.2f}, макс=${max(env.prices):.2f}, среднее=${np.mean(env.prices):.2f}")
+                
                 # Сбрасываем инвентарь среды перед оценкой
                 env.inventory = []
                 
                 for ep in range(n_episodes):
+                    # ВАЖНО: Сбрасываем среду и получаем начальное наблюдение
                     obs, _ = env.reset()
                     done = False
                     episode_reward = 0
@@ -240,43 +292,53 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                     episode_profit = 0  # Прибыль для текущего эпизода
                     ep_buys, ep_sells, ep_holds = 0, 0, 0  # Счетчики действий для эпизода
                     
-                    # Для логирования сделок
-                    buy_prices = []
+                    self._log(f"--- {env_type} Эпизод {ep+1}/{n_episodes} начало ---")
+                    step = 0
+                    
+                    # Массив для хранения всех цен в этом эпизоде
+                    episode_prices = []
                     
                     while not done:
                         action, _ = self.model.predict(obs, deterministic=True)
-                        obs, reward, done, _, info = env.step(action)
-                        episode_reward += reward
+                        next_obs, reward, done, _, info = env.step(action)
+                        
+                        # ВАЖНО: Берем цену НАПРЯМУЮ из среды, а не из orig_prices
+                        current_price = env.prices[env.current_step]
+                        episode_prices.append(current_price)
                         
                         # Считаем действия
                         real_action = info.get('real_action', 0)
+                        
                         if real_action == 1:  # Покупка
                             buys += 1
                             ep_buys += 1
-                            # Запоминаем цену покупки (используем оригинальные цены)
-                            price_idx = min(env.current_step, len(orig_prices)-1)
-                            buy_price = orig_prices[price_idx]
+                            # Запоминаем цену покупки
+                            buy_price = current_price
                             positions.append(buy_price)
-                            buy_prices.append(buy_price)
                             
                             # Логируем в точном формате из примера
-                            with open(self.log_file, 'a') as f:
+                            with open(self.log_file, 'a', encoding='utf-8') as f:
                                 f.write(f"DEBUG Buy at: ${buy_price:.2f}\n")
+                                
+                            self._log(f"{env_type} Шаг {step+1}: ПОКУПКА по ${buy_price:.2f}")
+                            
                         elif real_action == 2:  # Продажа
                             sells += 1
                             ep_sells += 1
                             # Рассчитываем прибыль, если есть открытая позиция
                             if positions:
                                 buy_price = positions.pop(0)
-                                price_idx = min(env.current_step, len(orig_prices)-1)
-                                sell_price = orig_prices[price_idx]
+                                sell_price = current_price
                                 profit = sell_price - buy_price
                                 total_profit += profit
                                 episode_profit += profit
                                 
                                 # Логируем продажу в точном формате из примера
-                                with open(self.log_file, 'a') as f:
-                                    f.write(f"DEBUG Sell at: ${sell_price:.2f} | Position: {'+' if profit >= 0 else ''}{profit:.2f}\n")
+                                with open(self.log_file, 'a', encoding='utf-8') as f:
+                                    profit_sign = "+" if profit >= 0 else ""
+                                    f.write(f"DEBUG Sell at: ${sell_price:.2f} | Position: {profit_sign}${profit:.2f}\n")
+                                
+                                self._log(f"{env_type} Шаг {step+1}: ПРОДАЖА по ${sell_price:.2f}, прибыль {profit_sign}${profit:.2f}")
                                 
                                 # Рассчитываем доходность для Sharpe Ratio
                                 if buy_price > 0:  # Защита от деления на ноль
@@ -285,18 +347,28 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                         else:  # Удержание
                             holds += 1
                             ep_holds += 1
+                        
+                        obs = next_obs
+                        episode_reward += reward
+                        step += 1
                     
-                    # Закрываем оставшиеся позиции по последней цене
-                    if positions and len(orig_prices) > 0:
-                        last_price = orig_prices[-1]
+                    # Закрываем оставшиеся позиции по последней цене ЭТОГО ЭПИЗОДА
+                    if positions and episode_prices:
+                        # Используем последнюю цену ЭТОГО ЭПИЗОДА, а не всего датасета!
+                        last_price = episode_prices[-1]
+                        self._log(f"{env_type} Эпизод {ep+1}: Закрытие {len(positions)} позиций по последней цене ${last_price:.2f}")
+                        
                         for buy_price in positions:
                             profit = last_price - buy_price
                             total_profit += profit
                             episode_profit += profit
                             
                             # Логируем закрытие позиции в точном формате из примера
-                            with open(self.log_file, 'a') as f:
-                                f.write(f"DEBUG Close at: ${last_price:.2f} | Position: {'+' if profit >= 0 else ''}{profit:.2f}\n")
+                            with open(self.log_file, 'a', encoding='utf-8') as f:
+                                profit_sign = "+" if profit >= 0 else ""
+                                f.write(f"DEBUG Close at: ${last_price:.2f} | Position: {profit_sign}${profit:.2f}\n")
+                            
+                            self._log(f"{env_type} Закрытие: покупка ${buy_price:.2f}, продажа ${last_price:.2f}, прибыль {profit_sign}${profit:.2f}")
                             
                             # Рассчитываем доходность для Sharpe Ratio
                             if buy_price > 0:  # Защита от деления на ноль
@@ -313,7 +385,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                     episode_profits.append(episode_profit)
                     
                     # Логируем результаты эпизода
-                    env_type = "train" if is_train else "val  "
+                    self._log(f"--- {env_type} Эпизод {ep+1} итоги: прибыль ${episode_profit:.2f}, покупок {ep_buys}, продаж {ep_sells}, удержаний {ep_holds} ---")
                     self._log(f"[Eval] {env_type} ep {ep}:profit {episode_profit:.6f}")
                 
                 # Средние значения
@@ -323,15 +395,30 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                 # Расчет Sharpe Ratio
                 sharpe_ratio = 0.0
                 if len(all_returns) > 1:
+                    # Правильный расчет Sharpe Ratio
+                    # Sharpe = (R_p - R_f) / σ_p
+                    # где R_p - средняя доходность портфеля, R_f - безрисковая ставка (обычно 0 для дневных данных),
+                    # σ_p - стандартное отклонение доходности портфеля
                     mean_return = np.mean(all_returns)
                     std_return = np.std(all_returns)
                     
                     # Годовой Sharpe с защитой от деления на ноль
                     if std_return > 1e-8:
+                        # Умножаем на sqrt(252) для годовой оценки (252 - примерное количество торговых дней в году)
                         sharpe_ratio = mean_return / std_return * np.sqrt(252)
+                    else:
+                        # Если стандартное отклонение близко к нулю, это может быть признаком проблемы
+                        # Устанавливаем Sharpe в 0, чтобы избежать деления на ноль
+                        sharpe_ratio = 0.0
+                        self._log(f"ВНИМАНИЕ: Стандартное отклонение доходности близко к нулю: {std_return}")
                 
                 # Ограничиваем Sharpe разумными пределами
+                # Обычно Sharpe > 3 уже считается отличным результатом
                 sharpe_ratio = np.clip(sharpe_ratio, -5.0, 5.0)
+                
+                # Если Sharpe слишком высокий, это может быть признаком проблемы
+                if abs(sharpe_ratio) > 3.0:
+                    self._log(f"ВНИМАНИЕ: Очень высокий Sharpe Ratio: {sharpe_ratio:.4f}. Возможно, проблема с расчетом.")
                 
                 # Сохраняем результаты тренировки для итогового лога
                 if is_train:
@@ -339,14 +426,17 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                     self.train_sharpe = sharpe_ratio
                 else:
                     # Формат точно как в примере - записываем только в конце валидации
-                    with open(self.log_file, 'a') as f:
+                    with open(self.log_file, 'a', encoding='utf-8') as f:
                         f.write(f"INFO Episode {self.eval_count}/50 - Train Position: +${self.train_profit:.2f}  Val Position: +${total_profit:.2f}  Train Loss: {self.train_sharpe:.4f})\n")
+                
+                # Итоговый лог
+                self._log(f"{env_type.capitalize()} итоги: прибыль ${total_profit:.2f}, Sharpe {sharpe_ratio:.4f}, покупок {buys}, продаж {sells}, удержаний {holds}")
                 
                 return avg_reward, buys, sells, holds, total_profit, sharpe_ratio
                 
             def _log(self, message):
                 """Логирование сообщения в файл"""
-                with open(self.log_file, 'a') as f:
+                with open(self.log_file, 'a', encoding='utf-8') as f:
                     f.write(message + '\n')
         
         # Настраиваем модель TD3
@@ -359,19 +449,17 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
             "MlpPolicy",
             train_env,
             verbose=0,
-            buffer_size=100000,
-            learning_rate=3e-4,
-            batch_size=256,
-            train_freq=(1, "episode"),
+            buffer_size=TD3_CONFIG["buffer_size"],
+            learning_rate=TD3_CONFIG["learning_rate"],
+            batch_size=TD3_CONFIG["batch_size"],
+            train_freq=TD3_CONFIG["train_freq"],
             action_noise=NormalActionNoise(
                 mean=np.zeros(n_actions),
                 sigma=td3_noise_sigma * np.ones(n_actions)
             ),
             policy_kwargs=dict(
-                net_arch=dict(
-                    pi=[64, 64],
-                    qf=[64, 64]
-                )
+                net_arch=TD3_CONFIG["net_arch"],
+                activation_fn={"relu": nn.ReLU, "tanh": nn.Tanh, "elu": nn.ELU}[TD3_CONFIG.get("activation_fn", "relu")]
             )
         )
         
@@ -381,15 +469,15 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
             val_env=val_env,
             model=model,
             total_timesteps=td3_timesteps,
-            max_plots=10
+            max_plots=VIS_CONFIG["max_plots"]
         )
         
         # Создаем callback для оценки
         eval_callback = TD3EvalCallback(
             train_env=train_env,
             val_env=val_env,
-            eval_freq=1000,
-            n_eval_episodes=2,
+            eval_freq=TD3_CONFIG["eval_freq"],
+            n_eval_episodes=TD3_CONFIG["n_eval_episodes"],
             log_file=log_file
         )
         
@@ -404,7 +492,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         
         # Оцениваем модель на валидационных данных
         val_env.reset()
-        obs = val_env._get_observation()
+        obs, _ = val_env.reset()  # Используем метод reset вместо _get_observation
         done = False
         total_reward = 0
         steps = 0
@@ -412,7 +500,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         
         while not done:
             action, _ = model.predict(obs, deterministic=True)
-            obs, reward, done, _, info = val_env.step(action)
+            obs, reward, done, _, _ = val_env.step(action)
             total_reward += reward
             steps += 1
             
@@ -421,14 +509,15 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                 buys += 1
                 price_idx = min(val_env.current_step, len(orig_val_prices)-1)
                 buy_price = orig_val_prices[price_idx]
-                with open(log_file, 'a') as f:
+                with open(log_file, 'a', encoding='utf-8') as f:
                     f.write(f"DEBUG Buy at: ${buy_price:.2f}\n")
             elif real_action == 2:  # Продажа
                 sells += 1
                 price_idx = min(val_env.current_step, len(orig_val_prices)-1)
                 sell_price = orig_val_prices[price_idx]
-                with open(log_file, 'a') as f:
-                    f.write(f"DEBUG Sell at: ${sell_price:.2f}\n")
+                with open(log_file, 'a', encoding='utf-8') as f:
+                    profit_sign = "+" if sell_price - buy_price >= 0 else ""
+                    f.write(f"DEBUG Sell at: ${sell_price:.2f} | Position: {profit_sign}${sell_price - buy_price:.2f}\n")
             else:  # Удержание
                 holds += 1
         
@@ -481,7 +570,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
     print(f"Train: {len(train_df)} days")
     print(f"train_data: min={np.min(train_data):.2f}, max={np.max(train_data):.2f}, mean={np.mean(train_data):.2f}")
     # Принудительно создать лог-файл
-    with open("train_finetune.log", "a") as f: f.write("=== Training started ===\n")
+    with open("train_finetune.log", "a", encoding='utf-8') as f: f.write("=== Training started ===\n")
     # TD3 strategy: train with Stable-Baselines3 and visualize via VisualizeCallback
     if strategy == 'td3':
         # Setup logging directories
@@ -519,9 +608,40 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         val_prices = val_df['Adj Close'].values
         val_vols = val_df['Volume'].values
 
-        train_env = TradingEnv(train_prices, train_vols, window_size)
-        val_env = TradingEnv(val_prices, val_vols, window_size)
-        #train_env = Monitor(train_env, monitor_dir)  # Отключено для совместимости с визуализацией
+        train_env = TradingEnv(
+            prices=train_prices,
+            volumes=train_vols,
+            window_size=window_size,
+            commission=ENV_CONFIG["commission"],
+            max_inventory=ENV_CONFIG["max_inventory"],
+            carry_cost=ENV_CONFIG["carry_cost"],
+            min_trade_value=ENV_CONFIG["min_trade_value"],
+            risk_lambda=ENV_CONFIG["risk_lambda"],
+            drawdown_lambda=ENV_CONFIG["drawdown_lambda"],
+            dual_phase=ENV_CONFIG["dual_phase"],
+            max_episode_steps=ENV_CONFIG["max_episode_steps"],
+            hold_penalty=ENV_CONFIG["hold_penalty"],
+            profit_bonus=ENV_CONFIG["profit_bonus"],
+            loss_penalty=ENV_CONFIG["loss_penalty"]
+        )
+        
+        val_env = TradingEnv(
+            prices=val_prices,
+            volumes=val_vols,
+            window_size=window_size,
+            commission=ENV_CONFIG["commission"],
+            max_inventory=ENV_CONFIG["max_inventory"],
+            carry_cost=ENV_CONFIG["carry_cost"],
+            min_trade_value=ENV_CONFIG["min_trade_value"],
+            risk_lambda=ENV_CONFIG["risk_lambda"],
+            drawdown_lambda=ENV_CONFIG["drawdown_lambda"],
+            dual_phase=ENV_CONFIG["dual_phase"],
+            max_episode_steps=ENV_CONFIG["max_episode_steps"],
+            hold_penalty=ENV_CONFIG["hold_penalty"],
+            profit_bonus=ENV_CONFIG["profit_bonus"],
+            loss_penalty=ENV_CONFIG["loss_penalty"]
+        )
+        
         n_actions = train_env.action_space.shape[0]
         action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=td3_noise_sigma * np.ones(n_actions))
         # Initialize TD3 with TensorBoard logging
@@ -705,19 +825,46 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                 return True
 
         # создаём среды
-        env = TradingEnv(raw_train_prices, raw_train_volumes, window_size, dual_phase=False)
+        env = TradingEnv(
+            prices=raw_train_prices,
+            volumes=raw_train_volumes,
+            window_size=window_size,
+            commission=ENV_CONFIG["commission"],
+            max_inventory=ENV_CONFIG["max_inventory"],
+            carry_cost=ENV_CONFIG["carry_cost"],
+            min_trade_value=ENV_CONFIG["min_trade_value"],
+            risk_lambda=ENV_CONFIG["risk_lambda"],
+            drawdown_lambda=ENV_CONFIG["drawdown_lambda"],
+            dual_phase=ENV_CONFIG["dual_phase"],
+            max_episode_steps=ENV_CONFIG["max_episode_steps"],
+            hold_penalty=ENV_CONFIG["hold_penalty"],
+            profit_bonus=ENV_CONFIG["profit_bonus"],
+            loss_penalty=ENV_CONFIG["loss_penalty"]
+        )
         # enforce same normalization bounds for train and val envs
         train_eval_env = TradingEnv(
-            raw_train_prices, raw_train_volumes, window_size,
+            prices=raw_train_prices,
+            volumes=raw_train_volumes,
+            window_size=window_size,
             commission=0.0, max_inventory=1000, carry_cost=0.0,
             min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
-            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
+            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False,
+            max_episode_steps=ENV_CONFIG["max_episode_steps"],
+            hold_penalty=ENV_CONFIG["hold_penalty"],
+            profit_bonus=ENV_CONFIG["profit_bonus"],
+            loss_penalty=ENV_CONFIG["loss_penalty"]
         )
         eval_env = TradingEnv(
-            raw_val_prices, raw_val_volumes, window_size,
+            prices=raw_val_prices,
+            volumes=raw_val_volumes,
+            window_size=window_size,
             commission=0.0, max_inventory=1000, carry_cost=0.0,
             min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
-            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
+            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False,
+            max_episode_steps=ENV_CONFIG["max_episode_steps"],
+            hold_penalty=ENV_CONFIG["hold_penalty"],
+            profit_bonus=ENV_CONFIG["profit_bonus"],
+            loss_penalty=ENV_CONFIG["loss_penalty"]
         )
         # continuous action dim for TD3 (shape of Box)
         n_actions = env.action_space.shape[0]
@@ -801,10 +948,16 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         logging.info("=== Final Training Inference TD3 ===")
         # Final inference environment: disable costs and risk shaping for clear profit calc
         env_train = TradingEnv(
-            raw_train_prices, raw_train_volumes, window_size,
+            prices=raw_train_prices,
+            volumes=raw_train_volumes,
+            window_size=window_size,
             commission=0.0, max_inventory=1000, carry_cost=0.0,
             min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
-            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
+            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False,
+            max_episode_steps=ENV_CONFIG["max_episode_steps"],
+            hold_penalty=ENV_CONFIG["hold_penalty"],
+            profit_bonus=ENV_CONFIG["profit_bonus"],
+            loss_penalty=ENV_CONFIG["loss_penalty"]
         )
         obs, _ = env_train.reset(); done=False; total_profit_train=0.0; trades_train=0
         while not done:
@@ -823,10 +976,16 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         logging.info("=== Final Validation Inference TD3 ===")
         # Validation environment: same normalization, no costs/risk shaping
         env_val = TradingEnv(
-            raw_val_prices, raw_val_volumes, window_size,
+            prices=raw_val_prices,
+            volumes=raw_val_volumes,
+            window_size=window_size,
             commission=0.0, max_inventory=1000, carry_cost=0.0,
             min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices),
-            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False
+            risk_lambda=0.0, drawdown_lambda=0.0, dual_phase=False,
+            max_episode_steps=ENV_CONFIG["max_episode_steps"],
+            hold_penalty=ENV_CONFIG["hold_penalty"],
+            profit_bonus=ENV_CONFIG["profit_bonus"],
+            loss_penalty=ENV_CONFIG["loss_penalty"]
         )
         obs, _ = env_val.reset(); done=False; total_profit=0.0; trades_val=0
         while not done:
@@ -893,14 +1052,14 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
             deltas.append(delta)
         trades = valid_trades
         sharpe = (np.mean(deltas) / (np.std(deltas) + 1e-8)) if deltas else 0.0
-        print(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}")
-        logging.info(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}")
-        with open("train_finetune.log", "a") as f:
-            f.write(f"Epoch {epoch}/{ep_count}: train_profit={profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}\n")
+        print(f"Epoch {epoch}/{ep_count}: train_profit=${profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}")
+        logging.info(f"Epoch {epoch}/{ep_count}: train_profit=${profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}")
+        with open("train_finetune.log", "a", encoding='utf-8') as f:
+            f.write(f"Epoch {epoch}/{ep_count}: train_profit=${profit:.2f} train_loss={result[3]} trades={trades} sharpe={sharpe:.2f}\n")
         # Evaluate on val set
         val_profit, _ = evaluate_model(agent, val_data, window_size, debug, min_v=np.min(raw_train_prices), max_v=np.max(raw_train_prices))
-        logging.info(f"Epoch {epoch}/{ep_count}: val_profit={val_profit:.2f}")
-        pbar.set_postfix(train_profit=f"{profit:.2f}", val_profit=f"{val_profit:.2f}", sharpe=f"{sharpe:.2f}")
+        logging.info(f"Epoch {epoch}/{ep_count}: val_profit=${val_profit:.2f}")
+        pbar.set_postfix(train_profit=f"${profit:.2f}", val_profit=f"${val_profit:.2f}", sharpe=f"{sharpe:.2f}")
         if best_val_profit is None or val_profit > best_val_profit:
             best_val_profit = val_profit
             best_val_epoch = epoch
@@ -911,15 +1070,15 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         if earlystop_patience and no_improve >= earlystop_patience:
             print(f"Early stopping at epoch {epoch}")
             break
-    print(f"Best val profit={best_val_profit:.2f} at epoch {best_val_epoch}")
-    logging.info(f"Best val profit={best_val_profit:.2f} at epoch {best_val_epoch}")
+    print(f"Best val profit=${best_val_profit:.2f} at epoch {best_val_epoch}")
+    logging.info(f"Best val profit=${best_val_profit:.2f} at epoch {best_val_epoch}")
 
 
 if __name__ == "__main__":
     args = docopt(__doc__)
 
     stock = args["<stock>"]
-    window_size = int(args["--window-size"])
+    window_size = int(args["--window-size"]) or ENV_CONFIG["window_size"]
     batch_size = int(args["--batch-size"])
     ep_count = int(args["--episode-count"])
     strategy = args["--strategy"]
@@ -928,8 +1087,8 @@ if __name__ == "__main__":
     debug = args["--debug"]
     model_type = args.get("--model-type") or 'dense'
     target_update = int(args.get("--target-update") or 100)
-    td3_timesteps = int(args.get("--td3-timesteps") or 1000000)
-    td3_noise_sigma = float(args.get("--td3-noise-sigma") or 1.0)
+    td3_timesteps = int(args.get("--td3-timesteps") or TD3_CONFIG["timesteps"])
+    td3_noise_sigma = float(args.get("--td3-noise-sigma") or TD3_CONFIG["noise_sigma"])
     td3_save_name = args.get("--td3-save-name") or 'td3_model'
 
     # LSTM: 500 эпох, earlystop=50

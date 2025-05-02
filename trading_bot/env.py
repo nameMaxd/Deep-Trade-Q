@@ -158,12 +158,25 @@ class TradingEnv(gym.Env):
         self.equity.append(self.equity[-1] + reward)
         self.max_equity = max(self.max_equity, self.equity[-1])
         
-        # Упрощенная функция награды: Profit - λ⋅Risk
-        # Риск = стандартное отклонение доходности (волатильность)
-        vol = float(np.std(self.rewards[-20:]) if len(self.rewards) > 20 else 0.0)
+        # Расчет Sharpe Ratio на основе последних доходностей
+        # Используем формулу из статьи: r_t = Profit - λ·Risk
+        # где Risk - это волатильность доходности (стандартное отклонение)
+        returns = self.rewards[-20:] if len(self.rewards) > 20 else self.rewards
         
-        # Финальная награда: прибыль минус штраф за риск
-        reward = reward - self.risk_lambda * vol
+        if len(returns) > 1:
+            # Волатильность доходности (риск)
+            vol = float(np.std(returns))
+            # Средняя доходность
+            mean_return = float(np.mean(returns))
+            # Sharpe Ratio (без безрисковой ставки)
+            sharpe = mean_return / (vol + 1e-8)
+            
+            # Финальная награда: прибыль минус штраф за риск
+            # r_t = Profit - λ·Risk
+            reward = reward - self.risk_lambda * vol
+        else:
+            # Если недостаточно данных для расчета Sharpe
+            reward = reward
         
         # ======= CRITICAL DEBUG BLOCK =========
         # Убираем форсированный done, возвращаем обычную логику

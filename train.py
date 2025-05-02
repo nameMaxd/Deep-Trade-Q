@@ -40,6 +40,7 @@ mixed_precision.set_global_policy('mixed_float16')
 import io
 import re
 import numpy as np
+from datetime import datetime
 
 from docopt import docopt
 
@@ -74,10 +75,17 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
     from trading_bot.ops import get_state
     from tqdm import tqdm
 
-    # Настраиваем логирование в файл
-    logging.basicConfig(filename="train_finetune.log", filemode="w", level=logging.INFO,
-                        format="%(asctime)s %(levelname)s %(message)s")
-    print("Лог обучения будет писаться в train_finetune.log")
+    # Настраиваем логирование
+    if debug:
+        log_file = "train_debug.log"
+    else:
+        log_file = "train_finetune.log"
+    
+    # Очищаем лог-файл перед началом
+    with open(log_file, 'w') as f:
+        f.write("")
+    
+    print(f"Лог обучения будет писаться в {log_file}")
 
     # === TD3 TRAINING BLOCK ===
     if strategy == 'td3':
@@ -152,37 +160,66 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                 self.train_prices = orig_train_prices
                 self.val_prices = orig_val_prices
                 
+                # Для отслеживания шагов оценки
+                self.next_eval_step = eval_freq  # Следующий шаг для оценки
+                self.is_evaluating = False  # Флаг, указывающий, что идет оценка
+                
             def _on_training_start(self):
-                self.pbar = tqdm(total=td3_timesteps, desc="TD3 Training")
+                # Инициализируем прогресс-бар без обновления
+                self.pbar = tqdm(total=td3_timesteps, desc="TD3 Training", bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]')
                 self._log(f"Начало обучения TD3. Всего шагов: {td3_timesteps}")
                 
             def _on_step(self):
-                self.pbar.update(1)
+                # Обновляем прогресс-бар только если не идет оценка
+                if not self.is_evaluating:
+                    self.pbar.update(1)
                 
-                # Периодическая оценка на валидационных данных
-                if self.n_calls % self.eval_freq == 0:
+                # Проверяем, нужно ли начать оценку
+                if self.n_calls == self.next_eval_step and not self.is_evaluating:
+                    self.is_evaluating = True  # Устанавливаем флаг оценки
                     self.eval_count += 1
+                    
+                    # Закрываем текущий прогресс-бар перед оценкой
+                    self.pbar.close()
+                    
                     self._log(f"=== Оценка #{self.eval_count} (шаг {self.n_calls}) ===")
                     
-                    # Оценка на тренировочных данных
-                    train_rewards, train_buys, train_sells, train_holds, train_profits = self._evaluate_env(self.train_env, self.train_prices)
+                    # Оценка на тренировочных данных (только 2 эпизода для ускорения)
+                    train_rewards, train_buys, train_sells, train_holds, train_profits, train_sharpe = self._evaluate_env(
+                        self.train_env, self.train_prices, n_episodes=2)
                     
-                    # Оценка на валидационных данных
-                    val_rewards, val_buys, val_sells, val_holds, val_profits = self._evaluate_env(self.val_env, self.val_prices)
+                    # Оценка на валидационных данных (только 2 эпизода для ускорения)
+                    val_rewards, val_buys, val_sells, val_holds, val_profits, val_sharpe = self._evaluate_env(
+                        self.val_env, self.val_prices, n_episodes=2)
                     
-                    # Логирование результатов
-                    self._log(f"Тренировка: reward={train_rewards:.2f}, profit={train_profits:.2f}, buys={train_buys}, sells={train_sells}, holds={train_holds}")
-                    self._log(f"Валидация: reward={val_rewards:.2f}, profit={val_profits:.2f}, buys={val_buys}, sells={val_sells}, holds={val_holds}")
+                    # Сводная строка с результатами
+                    self._log(f"[Eval] Шаг {self.n_calls}: TrainProfit {train_profits:.6f}, ValProfit {val_profits:.6f}, TrainSharpe {train_sharpe:.6f}, ValSharpe {val_sharpe:.6f}, TradesTrain {train_buys+train_sells}, TradesVal {val_buys+val_sells}")
                     
-                    # Обновление tqdm
-                    self.pbar.set_postfix(train_reward=f"{train_rewards:.2f}", val_reward=f"{val_rewards:.2f}", 
-                                          train_profit=f"{train_profits:.2f}", val_profit=f"{val_profits:.2f}")
-                    
-                    # Сохранение лучшей модели
-                    if val_rewards > self.best_mean_reward:
-                        self.best_mean_reward = val_rewards
+                    # Сохранение лучшей модели по Sharpe Ratio
+                    if val_sharpe > self.best_mean_reward:
+                        self.best_mean_reward = val_sharpe
                         self.model.save(f"models/{td3_save_name}_best")
-                        self._log(f"Новая лучшая модель сохранена с val_reward={val_rewards:.2f}")
+                        self._log(f"Новая лучшая модель сохранена с val_sharpe={val_sharpe:.2f}")
+                    
+                    # Устанавливаем следующий шаг для оценки
+                    self.next_eval_step += self.eval_freq
+                    
+                    # Создаем новый прогресс-бар с обновленными метриками
+                    self.pbar = tqdm(
+                        total=td3_timesteps, 
+                        initial=self.n_calls,
+                        desc="TD3 Training",
+                        bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]',
+                        postfix={
+                            'train_profit': f"{train_profits:.2f}", 
+                            'val_profit': f"{val_profits:.2f}", 
+                            'train_sharpe': f"{train_sharpe:.2f}", 
+                            'val_sharpe': f"{val_sharpe:.2f}"
+                        }
+                    )
+                    
+                    # Сбрасываем флаг оценки
+                    self.is_evaluating = False
                 
                 return True
                 
@@ -190,17 +227,32 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                 self.pbar.close()
                 self._log("Обучение завершено")
                 
-            def _evaluate_env(self, env, orig_prices):
+            def _evaluate_env(self, env, orig_prices, n_episodes=None):
                 """Оценка модели на среде с подсчетом метрик"""
+                # Если n_episodes не указано, используем значение из self.n_eval_episodes
+                if n_episodes is None:
+                    n_episodes = self.n_eval_episodes
+                
                 total_rewards = 0
                 buys, sells, holds = 0, 0, 0
                 total_profit = 0
+                all_returns = []  # Для расчета Sharpe Ratio
+                episode_profits = []  # Для отслеживания прибыли по эпизодам
                 
-                for _ in range(self.n_eval_episodes):
+                # Сбрасываем инвентарь среды перед оценкой
+                env.inventory = []
+                
+                for ep in range(n_episodes):
                     obs, _ = env.reset()
                     done = False
                     episode_reward = 0
                     positions = []  # Для отслеживания открытых позиций
+                    episode_returns = []  # Доходность для текущего эпизода
+                    episode_profit = 0  # Прибыль для текущего эпизода
+                    ep_buys, ep_sells, ep_holds = 0, 0, 0  # Счетчики действий для эпизода
+                    
+                    # Для логирования сделок
+                    buy_prices = []
                     
                     while not done:
                         action, _ = self.model.predict(obs, deterministic=True)
@@ -211,39 +263,107 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                         real_action = info.get('real_action', 0)
                         if real_action == 1:  # Покупка
                             buys += 1
+                            ep_buys += 1
                             # Запоминаем цену покупки (используем оригинальные цены)
                             price_idx = min(env.current_step, len(orig_prices)-1)
-                            positions.append(orig_prices[price_idx])
+                            buy_price = orig_prices[price_idx]
+                            positions.append(buy_price)
+                            buy_prices.append(buy_price)
+                            
+                            # Логируем в точном формате из примера
+                            with open(self.log_file, 'a') as f:
+                                f.write(f"DEBUG Buy at: ${buy_price:.2f}\n")
                         elif real_action == 2:  # Продажа
                             sells += 1
+                            ep_sells += 1
                             # Рассчитываем прибыль, если есть открытая позиция
                             if positions:
                                 buy_price = positions.pop(0)
                                 price_idx = min(env.current_step, len(orig_prices)-1)
                                 sell_price = orig_prices[price_idx]
-                                total_profit += sell_price - buy_price
+                                profit = sell_price - buy_price
+                                total_profit += profit
+                                episode_profit += profit
+                                
+                                # Логируем продажу в точном формате из примера
+                                with open(self.log_file, 'a') as f:
+                                    f.write(f"DEBUG Sell at: ${sell_price:.2f} | Position: {'+' if profit >= 0 else ''}{profit:.2f}\n")
+                                
+                                # Рассчитываем доходность для Sharpe Ratio
+                                if buy_price > 0:  # Защита от деления на ноль
+                                    returns_pct = (sell_price - buy_price) / buy_price
+                                    episode_returns.append(returns_pct)
                         else:  # Удержание
                             holds += 1
+                            ep_holds += 1
                     
                     # Закрываем оставшиеся позиции по последней цене
                     if positions and len(orig_prices) > 0:
                         last_price = orig_prices[-1]
                         for buy_price in positions:
-                            total_profit += last_price - buy_price
+                            profit = last_price - buy_price
+                            total_profit += profit
+                            episode_profit += profit
+                            
+                            # Логируем закрытие позиции в точном формате из примера
+                            with open(self.log_file, 'a') as f:
+                                f.write(f"DEBUG Close at: ${last_price:.2f} | Position: {'+' if profit >= 0 else ''}{profit:.2f}\n")
+                            
+                            # Рассчитываем доходность для Sharpe Ratio
+                            if buy_price > 0:  # Защита от деления на ноль
+                                returns_pct = (last_price - buy_price) / buy_price
+                                episode_returns.append(returns_pct)
                     
                     total_rewards += episode_reward
+                    
+                    # Добавляем доходности эпизода в общий список
+                    if episode_returns:
+                        all_returns.extend(episode_returns)
+                    
+                    # Сохраняем прибыль эпизода
+                    episode_profits.append(episode_profit)
+                    
+                    # Логируем результаты эпизода
+                    is_train = env == self.train_env
+                    env_type = "train" if is_train else "val  "
+                    self._log(f"[Eval] {env_type} ep {ep}:profit {episode_profit:.6f}")
                 
                 # Средние значения
-                avg_reward = total_rewards / self.n_eval_episodes
+                avg_reward = total_rewards / max(1, n_episodes)
+                avg_profit = total_profit / max(1, n_episodes)
                 
-                return avg_reward, buys, sells, holds, total_profit
+                # Расчет Sharpe Ratio
+                sharpe_ratio = 0.0
+                if len(all_returns) > 1:
+                    mean_return = np.mean(all_returns)
+                    std_return = np.std(all_returns)
+                    
+                    # Годовой Sharpe с защитой от деления на ноль
+                    if std_return > 1e-8:
+                        sharpe_ratio = mean_return / std_return * np.sqrt(252)
+                
+                # Ограничиваем Sharpe разумными пределами
+                sharpe_ratio = np.clip(sharpe_ratio, -5.0, 5.0)
+                
+                # Итоговый лог для эпизода в точном формате из примера
+                is_train = env == self.train_env
+                env_type = "Train" if is_train else "Val"
+                
+                # Если это последний эпизод оценки, выводим итоговую строку
+                if is_train:
+                    self.train_profit = total_profit
+                    self.train_sharpe = sharpe_ratio
+                else:
+                    # Формат точно как в примере
+                    with open(self.log_file, 'a') as f:
+                        f.write(f"INFO Episode {self.eval_count}/50 - Train Position: +${self.train_profit:.2f}  Val Position: +${total_profit:.2f}  Train Loss: {self.train_sharpe:.4f})\n")
+                
+                return avg_reward, buys, sells, holds, total_profit, sharpe_ratio
                 
             def _log(self, message):
-                """Логирование в файл и консоль"""
-                print(message)
-                if self.log_file:
-                    with open(self.log_file, 'a', encoding='utf-8') as f:
-                        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - {message}\n")
+                """Логирование сообщения в файл"""
+                with open(self.log_file, 'a') as f:
+                    f.write(message + '\n')
         
         # Настраиваем модель TD3
         n_actions = train_env.action_space.shape[0] if hasattr(train_env.action_space, 'shape') else train_env.action_space.n
@@ -259,7 +379,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         
         # Создаем callbacks
         callbacks = [
-            TD3EvalCallback(train_env, val_env, eval_freq=500, n_eval_episodes=5, log_file=log_file),
+            TD3EvalCallback(train_env, val_env, eval_freq=2000, n_eval_episodes=5, log_file=log_file),
             VisualizeCallback(train_env, val_env, model, td3_timesteps, max_plots=20)
         ]
         
@@ -280,12 +400,12 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         
         while not done:
             action, _ = model.predict(obs, deterministic=True)
-            obs, reward, done, _, info = val_env.step(action)
+            obs, reward, done, _, _ = val_env.step(action)
             total_reward += reward
             steps += 1
             
             # Считаем действия и прибыль
-            real_action = info.get('real_action', 0)
+            real_action = action
             if real_action == 1:  # Покупка
                 buys += 1
                 price_idx = min(val_env.current_step, len(orig_val_prices)-1)
@@ -485,16 +605,17 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                             act, _ = self.model.predict(obs, deterministic=True)
                             obs, rew, done, _, info = self.train_env.step(act)
                             real_action = info.get('real_action', act)
-                            if real_action == 0:
-                                hold_t += 1
-                            elif real_action == 1:
-                                buy_t += 1; trade_t += 1
-                            elif real_action == 2:
-                                # Count only successful sells
+                            if real_action == 1:  # Покупка
+                                buy_t += 1
+                                trade_t += 1
+                            elif real_action == 2:  # Продажа
+                                sell_t += 1
                                 if self.train_env.inventory:
-                                    sell_t += 1; trade_t += 1
+                                    trade_t += 1
                                 else:
                                     hold_t += 1
+                            else:  # Удержание
+                                hold_t += 1
                             if real_action == 2:
                                 p_t += rew
                             r_t += rew; steps += 1
@@ -503,8 +624,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                             final_price = float(self.train_env.prices[self.train_env.current_step])
                             for bought_price, qty in self.train_env.inventory:
                                 profit = (final_price - bought_price) * qty
-                                cost = self.train_env.commission * (final_price * qty + bought_price * qty)
-                                p_t += profit - cost
+                                p_t += profit
                             self.train_env.inventory.clear()
                         tp.append(p_t); tr.append(r_t/steps if steps else 0.0); ttrades.append(trade_t)
                         print(f"[Eval] train ep {i}: profit {p_t:.6f}, buys {buy_t}, sells {sell_t}, holds {hold_t}")
@@ -518,15 +638,17 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                             act, _ = self.model.predict(obs, deterministic=True)
                             obs, rew, done, _, info = self.eval_env.step(act)
                             real_action = info.get('real_action', act)
-                            if real_action == 0:
-                                hold_v += 1
-                            elif real_action == 1:
-                                buy_v += 1; trade_v += 1
-                            elif real_action == 2:
+                            if real_action == 1:  # Покупка
+                                buy_v += 1
+                                trade_v += 1
+                            elif real_action == 2:  # Продажа
+                                sell_v += 1
                                 if self.eval_env.inventory:
-                                    sell_v += 1; trade_v += 1
+                                    trade_v += 1
                                 else:
                                     hold_v += 1
+                            else:  # Удержание
+                                hold_v += 1
                             if real_action == 2:
                                 p_v += rew
                             r_v += rew; steps += 1
@@ -535,8 +657,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                             final_price = float(self.eval_env.prices[self.eval_env.current_step])
                             for bought_price, qty in self.eval_env.inventory:
                                 profit = (final_price - bought_price) * qty
-                                cost = self.eval_env.commission * (final_price * qty + bought_price * qty)
-                                p_v += profit - cost
+                                p_v += profit
                             self.eval_env.inventory.clear()
                         vp.append(p_v); vr.append(r_v/steps if steps else 0.0); vtrades.append(trade_v)
                         print(f"[Eval] val   ep {i}: profit {p_v:.6f}, buys {buy_v}, sells {sell_v}, holds {hold_v}")

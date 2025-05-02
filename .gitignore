@@ -1,2 +1,3 @@
 /.venv37
 /plots/tensorboard
+/logs

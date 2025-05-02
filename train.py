@@ -89,59 +89,47 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
 
     # === TD3 TRAINING BLOCK ===
     if strategy == 'td3':
-        import numpy as np  # <--- добавлено для numpy
+        import numpy as np
         from stable_baselines3 import TD3
         from stable_baselines3.common.noise import NormalActionNoise
-        from stable_baselines3.common.callbacks import BaseCallback, EvalCallback
-        from stable_baselines3.common.monitor import Monitor
-        from stable_baselines3.common.vec_env import DummyVecEnv
+        from stable_baselines3.common.callbacks import BaseCallback
         from trading_bot.env import TradingEnv
         from trading_bot.visualize_callback import VisualizeCallback
-        from trading_bot.utils import zscore_normalize
-        import gymnasium as gym
         import pandas as pd
         from tqdm import tqdm
-        import io, re, os, time
+        import time
+        import os
+        
+        # Создаем директории для моделей и графиков
+        os.makedirs('models', exist_ok=True)
+        os.makedirs('plots', exist_ok=True)
         
         print("TD3 Training (manual): подготовка данных...")
-        pattern = re.compile(r"\d{4}-\d{2}-\d{2}")
-        raw_lines = []
-        with open(stock, 'r', encoding='utf-8') as f:
-            for line in f:
-                if line.startswith('Date,'):
-                    raw_lines.append(line)
-                else:
-                    m = pattern.search(line)
-                    if m:
-                        raw_lines.append(line[m.start():])
-        df = pd.read_csv(io.StringIO('\n'.join(raw_lines)))
-        df = df.sort_values('Date').reset_index(drop=True)
         
-        # Разделяем данные на тренировочные и валидационные
-        train_df = df[(df['Date'] >= '2010-01-01') & (df['Date'] < '2024-06-01')]
-        val_df = df[(df['Date'] >= '2024-06-01')]
+        # Загружаем данные
+        data = pd.read_csv(stock)
+        data = data.sort_values('Date')
         
-        # Применяем Z-score нормализацию к ценам и объемам
-        train_prices = zscore_normalize(train_df['Adj Close'].values)
-        train_volumes = zscore_normalize(train_df['Volume'].values)
-        val_prices = zscore_normalize(val_df['Adj Close'].values)
-        val_volumes = zscore_normalize(val_df['Volume'].values)
+        # Разделяем на тренировочные и валидационные данные
+        train_data = data.iloc[:-20]
+        val_data = data.iloc[-20:]
         
-        # Сохраняем оригинальные цены для расчета прибыли
-        orig_train_prices = train_df['Adj Close'].values
-        orig_val_prices = val_df['Adj Close'].values
+        print(f"Тренировочные данные: {len(train_data)} дней")
+        print(f"Валидационные данные: {len(val_data)} дней")
         
-        print(f"Тренировочные данные: {len(train_df)} дней")
-        print(f"Валидационные данные: {len(val_df)} дней")
+        # Получаем цены и объемы для обучения
+        train_prices = train_data['Close'].values
+        train_volumes = train_data['Volume'].values
+        val_prices = val_data['Close'].values
+        val_volumes = val_data['Volume'].values
         
-        # Создаем среды для обучения и валидации
+        # Создаем среды
         train_env = TradingEnv(train_prices, train_volumes, window_size)
         val_env = TradingEnv(val_prices, val_volumes, window_size)
         
-        # Создаем директорию для логов и моделей
-        os.makedirs('models', exist_ok=True)
-        os.makedirs('logs', exist_ok=True)
-        log_file = os.path.join('logs', f'td3_training_{time.strftime("%Y%m%d_%H%M%S")}.log')
+        # Сохраняем оригинальные цены для расчета прибыли
+        orig_train_prices = train_prices
+        orig_val_prices = val_prices
         
         # Создаем callback для прогресс-бара и логирования
         class TD3EvalCallback(BaseCallback):
@@ -163,6 +151,10 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                 # Для отслеживания шагов оценки
                 self.next_eval_step = eval_freq  # Следующий шаг для оценки
                 self.is_evaluating = False  # Флаг, указывающий, что идет оценка
+                
+                # Для хранения результатов тренировки
+                self.train_profit = 0
+                self.train_sharpe = 0
                 
             def _on_training_start(self):
                 # Инициализируем прогресс-бар без обновления
@@ -186,14 +178,11 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                     
                     # Оценка на тренировочных данных (только 2 эпизода для ускорения)
                     train_rewards, train_buys, train_sells, train_holds, train_profits, train_sharpe = self._evaluate_env(
-                        self.train_env, self.train_prices, n_episodes=2)
+                        self.train_env, self.train_prices, n_episodes=2, is_train=True)
                     
                     # Оценка на валидационных данных (только 2 эпизода для ускорения)
                     val_rewards, val_buys, val_sells, val_holds, val_profits, val_sharpe = self._evaluate_env(
-                        self.val_env, self.val_prices, n_episodes=2)
-                    
-                    # Сводная строка с результатами
-                    self._log(f"[Eval] Шаг {self.n_calls}: TrainProfit {train_profits:.6f}, ValProfit {val_profits:.6f}, TrainSharpe {train_sharpe:.6f}, ValSharpe {val_sharpe:.6f}, TradesTrain {train_buys+train_sells}, TradesVal {val_buys+val_sells}")
+                        self.val_env, self.val_prices, n_episodes=2, is_train=False)
                     
                     # Сохранение лучшей модели по Sharpe Ratio
                     if val_sharpe > self.best_mean_reward:
@@ -227,7 +216,7 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                 self.pbar.close()
                 self._log("Обучение завершено")
                 
-            def _evaluate_env(self, env, orig_prices, n_episodes=None):
+            def _evaluate_env(self, env, orig_prices, n_episodes=None, is_train=True):
                 """Оценка модели на среде с подсчетом метрик"""
                 # Если n_episodes не указано, используем значение из self.n_eval_episodes
                 if n_episodes is None:
@@ -324,7 +313,6 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                     episode_profits.append(episode_profit)
                     
                     # Логируем результаты эпизода
-                    is_train = env == self.train_env
                     env_type = "train" if is_train else "val  "
                     self._log(f"[Eval] {env_type} ep {ep}:profit {episode_profit:.6f}")
                 
@@ -345,16 +333,12 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
                 # Ограничиваем Sharpe разумными пределами
                 sharpe_ratio = np.clip(sharpe_ratio, -5.0, 5.0)
                 
-                # Итоговый лог для эпизода в точном формате из примера
-                is_train = env == self.train_env
-                env_type = "Train" if is_train else "Val"
-                
-                # Если это последний эпизод оценки, выводим итоговую строку
+                # Сохраняем результаты тренировки для итогового лога
                 if is_train:
                     self.train_profit = total_profit
                     self.train_sharpe = sharpe_ratio
                 else:
-                    # Формат точно как в примере
+                    # Формат точно как в примере - записываем только в конце валидации
                     with open(self.log_file, 'a') as f:
                         f.write(f"INFO Episode {self.eval_count}/50 - Train Position: +${self.train_profit:.2f}  Val Position: +${total_profit:.2f}  Train Loss: {self.train_sharpe:.4f})\n")
                 
@@ -367,70 +351,92 @@ def main(stock, window_size=WINDOW_SIZE, batch_size=32, ep_count=50,
         
         # Настраиваем модель TD3
         n_actions = train_env.action_space.shape[0] if hasattr(train_env.action_space, 'shape') else train_env.action_space.n
-        # Увеличиваем шум для лучшего исследования
-        action_noise = NormalActionNoise(mean=np.zeros(n_actions), sigma=0.3 * np.ones(n_actions))
-        model = TD3('MlpPolicy', train_env, action_noise=action_noise, verbose=0, 
-                   learning_rate=0.001,  # Увеличиваем скорость обучения
-                   buffer_size=50000,    # Увеличиваем буфер опыта
-                   learning_starts=1000, # Начинаем обучение раньше
-                   batch_size=256,       # Увеличиваем размер батча
-                   train_freq=1,         # Обучаемся на каждом шаге
-                   policy_kwargs=dict(net_arch=[400, 300]))  # Более широкая сеть
         
-        # Создаем callbacks
-        callbacks = [
-            TD3EvalCallback(train_env, val_env, eval_freq=2000, n_eval_episodes=5, log_file=log_file),
-            VisualizeCallback(train_env, val_env, model, td3_timesteps, max_plots=20)
-        ]
+        print("TD3 Training: запуск обучения на", td3_timesteps, "шагов...")
         
-        print(f"TD3 Training: запуск обучения на {td3_timesteps} шагов...")
-        model.learn(total_timesteps=td3_timesteps, callback=callbacks)
-        model.save(f"models/{td3_save_name}")
-        print(f"TD3 Training: обучение завершено, модель сохранена как models/{td3_save_name}")
+        # Создаем модель TD3
+        model = TD3(
+            "MlpPolicy",
+            train_env,
+            verbose=0,
+            buffer_size=100000,
+            learning_rate=3e-4,
+            batch_size=256,
+            train_freq=(1, "episode"),
+            action_noise=NormalActionNoise(
+                mean=np.zeros(n_actions),
+                sigma=td3_noise_sigma * np.ones(n_actions)
+            ),
+            policy_kwargs=dict(
+                net_arch=dict(
+                    pi=[64, 64],
+                    qf=[64, 64]
+                )
+            )
+        )
         
-        # Финальная оценка модели на валидационных данных
-        print("Финальная оценка модели на валидационных данных...")
-        obs, _ = val_env.reset()
+        # Создаем callback для визуализации
+        vis_callback = VisualizeCallback(
+            train_env=train_env,
+            val_env=val_env,
+            model=model,
+            total_timesteps=td3_timesteps,
+            max_plots=10
+        )
+        
+        # Создаем callback для оценки
+        eval_callback = TD3EvalCallback(
+            train_env=train_env,
+            val_env=val_env,
+            eval_freq=1000,
+            n_eval_episodes=2,
+            log_file=log_file
+        )
+        
+        # Обучаем модель
+        model.learn(
+            total_timesteps=td3_timesteps,
+            callback=[eval_callback, vis_callback]
+        )
+        
+        # Сохраняем финальную модель
+        model.save(f"models/{td3_save_name}_final")
+        
+        # Оцениваем модель на валидационных данных
+        val_env.reset()
+        obs = val_env._get_observation()
         done = False
         total_reward = 0
         steps = 0
         buys, sells, holds = 0, 0, 0
-        positions = []
-        total_profit = 0
         
         while not done:
             action, _ = model.predict(obs, deterministic=True)
-            obs, reward, done, _, _ = val_env.step(action)
+            obs, reward, done, _, info = val_env.step(action)
             total_reward += reward
             steps += 1
             
-            # Считаем действия и прибыль
-            real_action = action
+            real_action = info.get('real_action', 0)
             if real_action == 1:  # Покупка
                 buys += 1
                 price_idx = min(val_env.current_step, len(orig_val_prices)-1)
-                positions.append(orig_val_prices[price_idx])
+                buy_price = orig_val_prices[price_idx]
+                with open(log_file, 'a') as f:
+                    f.write(f"DEBUG Buy at: ${buy_price:.2f}\n")
             elif real_action == 2:  # Продажа
                 sells += 1
-                if positions:
-                    buy_price = positions.pop(0)
-                    price_idx = min(val_env.current_step, len(orig_val_prices)-1)
-                    sell_price = orig_val_prices[price_idx]
-                    total_profit += sell_price - buy_price
+                price_idx = min(val_env.current_step, len(orig_val_prices)-1)
+                sell_price = orig_val_prices[price_idx]
+                with open(log_file, 'a') as f:
+                    f.write(f"DEBUG Sell at: ${sell_price:.2f}\n")
             else:  # Удержание
                 holds += 1
         
-        # Закрываем оставшиеся позиции
-        if positions and len(orig_val_prices) > 0:
-            last_price = orig_val_prices[-1]
-            for buy_price in positions:
-                total_profit += last_price - buy_price
-        
-        print(f"Результаты валидации: reward={total_reward:.2f}, profit={total_profit:.2f}, steps={steps}, buys={buys}, sells={sells}, holds={holds}")
+        print(f"Валидация: reward={total_reward:.2f}, buys={buys}, sells={sells}, holds={holds}")
         
         # Запись в лог-файл
         with open(log_file, 'a', encoding='utf-8') as f:
-            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - ФИНАЛЬНАЯ ОЦЕНКА: reward={total_reward:.2f}, profit={total_profit:.2f}, steps={steps}, buys={buys}, sells={sells}, holds={holds}\n")
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - ФИНАЛЬНАЯ ОЦЕНКА: reward={total_reward:.2f}, buys={buys}, sells={sells}, holds={holds}\n")
         
         exit(0)
     # === END TD3 TRAINING BLOCK ===

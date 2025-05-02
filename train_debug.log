@@ -1,0 +1,783 @@
+Начало обучения TD3. Всего шагов: 10000
+=== Оценка #1 (шаг 1000) ===
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 0:profit 1293.633654
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 1:profit 1293.633654
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 0:profit 52.060000
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 1:profit 52.060000
+INFO Episode 1/50 - Train Position: +$2587.27  Val Position: +$104.12  Train Loss: 5.0000)
+Новая лучшая модель сохранена с val_sharpe=5.00
+=== Оценка #2 (шаг 2000) ===
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 0:profit 1293.633654
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 1:profit 1293.633654
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 0:profit 52.060000
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 1:profit 52.060000
+INFO Episode 2/50 - Train Position: +$2587.27  Val Position: +$104.12  Train Loss: 5.0000)
+=== Оценка #3 (шаг 3000) ===
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 0:profit 1293.633654
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 1:profit 1293.633654
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 0:profit 52.060000
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 1:profit 52.060000
+INFO Episode 3/50 - Train Position: +$2587.27  Val Position: +$104.12  Train Loss: 5.0000)
+=== Оценка #4 (шаг 4000) ===
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 0:profit 1293.633654
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 1:profit 1293.633654
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 0:profit 52.060000
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 1:profit 52.060000
+INFO Episode 4/50 - Train Position: +$2587.27  Val Position: +$104.12  Train Loss: 5.0000)
+=== Оценка #5 (шаг 5000) ===
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 0:profit 1293.633654
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 1:profit 1293.633654
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 0:profit 52.060000
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 1:profit 52.060000
+INFO Episode 5/50 - Train Position: +$2587.27  Val Position: +$104.12  Train Loss: 5.0000)
+=== Оценка #6 (шаг 6000) ===
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 0:profit 1293.633654
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 1:profit 1293.633654
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 0:profit 52.060000
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 1:profit 52.060000
+INFO Episode 6/50 - Train Position: +$2587.27  Val Position: +$104.12  Train Loss: 5.0000)
+=== Оценка #7 (шаг 7000) ===
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 0:profit 1293.633654
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 1:profit 1293.633654
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 0:profit 52.060000
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 1:profit 52.060000
+INFO Episode 7/50 - Train Position: +$2587.27  Val Position: +$104.12  Train Loss: 5.0000)
+=== Оценка #8 (шаг 8000) ===
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 0:profit 1293.633654
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 1:profit 1293.633654
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 0:profit 52.060000
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 1:profit 52.060000
+INFO Episode 8/50 - Train Position: +$2587.27  Val Position: +$104.12  Train Loss: 5.0000)
+=== Оценка #9 (шаг 9000) ===
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 0:profit 1293.633654
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 1:profit 1293.633654
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 0:profit 52.060000
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 1:profit 52.060000
+INFO Episode 9/50 - Train Position: +$2587.27  Val Position: +$104.12  Train Loss: 5.0000)
+=== Оценка #10 (шаг 10000) ===
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 0:profit 1293.633654
+DEBUG Buy at: $12.17
+DEBUG Buy at: $12.15
+DEBUG Buy at: $12.28
+DEBUG Buy at: $12.07
+DEBUG Buy at: $11.71
+DEBUG Buy at: $11.56
+DEBUG Buy at: $11.61
+DEBUG Buy at: $11.30
+DEBUG Buy at: $173.56
+DEBUG Close at: $173.56 | Position: +161.39
+DEBUG Close at: $173.56 | Position: +161.41
+DEBUG Close at: $173.56 | Position: +161.28
+DEBUG Close at: $173.56 | Position: +161.49
+DEBUG Close at: $173.56 | Position: +161.85
+DEBUG Close at: $173.56 | Position: +162.00
+DEBUG Close at: $173.56 | Position: +161.95
+DEBUG Close at: $173.56 | Position: +162.26
+DEBUG Close at: $173.56 | Position: +0.00
+[Eval] train ep 1:profit 1293.633654
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 0:profit 52.060000
+DEBUG Buy at: $174.42
+DEBUG Buy at: $175.13
+DEBUG Buy at: $177.07
+DEBUG Buy at: $178.35
+DEBUG Buy at: $175.95
+DEBUG Buy at: $176.63
+DEBUG Buy at: $178.19
+DEBUG Buy at: $179.56
+DEBUG Buy at: $183.42
+DEBUG Close at: $183.42 | Position: +9.00
+DEBUG Close at: $183.42 | Position: +8.29
+DEBUG Close at: $183.42 | Position: +6.35
+DEBUG Close at: $183.42 | Position: +5.07
+DEBUG Close at: $183.42 | Position: +7.47
+DEBUG Close at: $183.42 | Position: +6.79
+DEBUG Close at: $183.42 | Position: +5.23
+DEBUG Close at: $183.42 | Position: +3.86
+DEBUG Close at: $183.42 | Position: +0.00
+[Eval] val   ep 1:profit 52.060000
+INFO Episode 10/50 - Train Position: +$2587.27  Val Position: +$104.12  Train Loss: 5.0000)
+Обучение завершено

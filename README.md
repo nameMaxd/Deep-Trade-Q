@@ -79,3 +79,126 @@ Now you are all set up!
 - [Deep Reinforcement Learning with Double Q-Learning](https://arxiv.org/abs/1509.06461)
 - [Prioritized Experience Replay](https://arxiv.org/abs/1511.05952)
 - [Dueling Network Architectures for Deep Reinforcement Learning](https://arxiv.org/abs/1511.06581)
+
+
+---
+# [Автоматически извлечённая статья](2208.07165v1.pdf)
+# Deep Reinforcement Learning Approach for Trading Automation in The Stock Market
+
+**Авторы:** Taylan Kabbani, Ekrem Duman, Ozyegin University, Istanbul, Turkey
+
+**Контакты:** 1taylan.kabbani1@ozu.edu.tr, 2ekrem.duman@ozyegin.edu.tr
+
+---
+
+## Краткое содержание
+- Использование DRL (Deep Reinforcement Learning) для автоматизации трейдинга на фондовом рынке.
+- Формулировка задачи как POMDP с учетом ограничений рынка (ликвидность, комиссии).
+- Решение с помощью TD3 (Twin Delayed Deep Deterministic Policy Gradient).
+- Достижение коэффициента Шарпа 2.68 на тестовой выборке.
+
+---
+
+## Ключевые слова
+Автономный агент, глубокое обучение с подкреплением, MDP, анализ новостей, технические индикаторы, TD3.
+
+---
+
+## Основные разделы статьи
+
+### 1. Введение
+Задача: минимизировать риски и максимизировать прибыль на рынке. DRL позволяет объединить предсказание цен и аллокацию капитала в единую систему.
+
+### 2. Теория RL и MDP
+- MDP и POMDP: формализация задачи трейдинга.
+- Bellman equations:
+
+$$
+V^*(s) = \max_a \sum_{s', r} P(s', r | s, a)[r + \gamma V^*(s')]
+$$
+
+- RL-алгоритмы: Critic-only, Actor-only, Actor-Critic.
+
+### 3. Формализация задачи трейдинга
+- Состояние: вектор (1 + 13*N), где N — число активов.
+- Действие: портфельная аллокация (buy/sell/hold), непрерывное пространство.
+- Вознаграждение: разница портфельной стоимости между шагами.
+- Ограничения: отсутствие short, комиссия, нет отрицательного баланса, нет влияния на рынок.
+
+### 4. TD3-алгоритм
+- Улучшение DDPG:
+    1. Clipped Double Critic Networks
+    2. Delayed Updates
+    3. Target Policy Smoothing
+
+#### Pseudocode TD3
+```latex
+1. Инициализация Q(s,a|w_1), Q(s,a|w_2), π(s|θ)
+2. Для каждого шага t:
+    - a ~ π(s|θ) + noise
+    - y = r + γ * min(Q1', Q2')
+    - Обновить критики и актор
+    - Обновить таргет-неты
+```
+
+### 5. Данные и препроцессинг
+- Исторические цены Yahoo Finance, финансовые новости (Benzinga, Reddit, Kaggle).
+- Технические индикаторы: RSI, SMA, EMA, MACD, OBV, и др.
+- Sentiment анализ: FinBERT.
+
+### 6. Эксперименты
+- Базовый вариант: только цены — Sharpe 1.43
+- + Тех. индикаторы — Sharpe 2.75
+- + Sentiment — Sharpe 3.14
+- Тест на 10 активах — Sharpe 2.68
+
+#### Таблица результатов
+| Окружение           | Доходность      | Sharpe | Комиссия |
+|---------------------|----------------|--------|----------|
+| Baseline            | 33960$±4473    | 1.43   | 355$±83  |
+| WithTechIndicators  | 89782$±18980   | 2.75   | 1109$±248|
+| WithSentiments      | 115591$±17721  | 3.14   | 1447$±268|
+| Benchmark (Kaur)    | —              | 0.85   | —        |
+
+---
+
+## Основные формулы
+- Bellman Optimality:
+
+$$
+V^*(s) = \max_a \sum_{s', r} P(s', r | s, a)[r + \gamma V^*(s')]
+$$
+
+- Actor-Critic update:
+
+$$
+\theta_{t+1} = \theta_t + \alpha \nabla_\theta \log \pi(a_t|s_t, \theta_t) (R_{t+1} + \gamma \hat{V}(s_{t+1}, w) - \hat{V}(s_t, w))
+$$
+
+- Reward:
+
+$$
+r(s, a, s') = V_t - V_{t-1}
+$$
+
+- Portfolio value:
+
+$$
+V_t = b_t + h_t \cdot C_t
+$$
+
+---
+
+## Выводы
+- DRL и TD3 позволяют строить прибыльные стратегии на рынке акций.
+- Добавление тех. индикаторов и анализа новостей улучшает результат.
+- Модель устойчива и обобщается на новые данные.
+
+---
+
+## Ссылки и литература
+(см. оригинальный список в статье)
+
+---
+
+_Файл собран автоматически из PDF. Для подробностей смотри оригинал/2208.07165v1.pdf._

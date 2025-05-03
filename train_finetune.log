@@ -1,1 +1,50 @@
+
+2025-05-03 12:09:04,717 INFO root[28824] End episode 10/10
+2025-05-03 12:09:59,560 INFO root[10616] End episode 1/10
+2025-05-03 12:09:59,567 INFO root[10616] Start episode 2/10
+2025-05-03 12:12:34,897 INFO root[10616] End episode 2/10
+2025-05-03 12:12:34,907 INFO root[10616] Start episode 3/10
+2025-05-03 12:15:08,841 INFO root[10616] End episode 3/10
+2025-05-03 12:15:08,855 INFO root[10616] Start episode 4/10
+2025-05-03 12:17:43,616 INFO root[10616] End episode 4/10
+2025-05-03 12:17:43,631 INFO root[10616] Start episode 5/10
+2025-05-03 12:20:18,703 INFO root[10616] End episode 5/10
+2025-05-03 12:20:18,734 INFO root[10616] Start episode 6/10
+2025-05-03 12:22:54,908 INFO root[10616] End episode 6/10
+2025-05-03 12:22:54,925 INFO root[10616] Start episode 7/10
+2025-05-03 12:25:43,563 INFO root[10616] End episode 7/10
+2025-05-03 12:25:51,988 INFO root[30944] === Запуск train.py с нормальными логами ===
 === Training started ===
+2025-05-03 12:25:53,581 INFO root[30944] Start episode 1/10
+2025-05-03 12:28:30,422 INFO root[30944] End episode 1/10
+2025-05-03 12:28:30,423 INFO root[30944] Start episode 2/10
+2025-05-03 12:31:17,644 INFO root[30944] End episode 2/10
+2025-05-03 12:31:17,645 INFO root[30944] Start episode 3/10
+2025-05-03 12:34:05,007 INFO root[30944] End episode 3/10
+2025-05-03 12:34:05,008 INFO root[30944] Start episode 4/10
+2025-05-03 12:37:06,237 INFO root[30944] End episode 4/10
+2025-05-03 12:37:06,238 INFO root[30944] Start episode 5/10
+2025-05-03 12:39:32,734 INFO root[30944] End episode 5/10
+2025-05-03 12:39:32,735 INFO root[30944] Start episode 6/10
+2025-05-03 12:41:56,358 INFO root[30944] End episode 6/10
+2025-05-03 12:41:56,359 INFO root[30944] Start episode 7/10
+2025-05-03 12:44:24,007 INFO root[30944] End episode 7/10
+2025-05-03 12:44:24,007 INFO root[30944] Start episode 8/10
+2025-05-03 12:46:52,697 INFO root[30944] End episode 8/10
+2025-05-03 12:46:52,698 INFO root[30944] Start episode 9/10
+2025-05-03 12:49:23,299 INFO root[30944] End episode 9/10
+2025-05-03 12:49:23,300 INFO root[30944] Start episode 10/10
+2025-05-03 12:54:14,158 INFO root[29032] === Запуск train.py с нормальными логами ===
+=== Training started ===
+2025-05-03 12:54:15,331 INFO root[29032] Start episode 1/10
+2025-05-03 13:37:24,927 INFO root[11460] === Запуск train.py с нормальными логами ===
+=== Training started ===
+2025-05-03 13:37:26,326 INFO root[11460] Start episode 1/10
+2025-05-03 13:39:40,607 INFO root[8860] === Запуск train.py с нормальными логами ===
+=== Training started ===
+2025-05-03 13:39:41,312 INFO root[11460] End episode 1/10
+2025-05-03 13:39:41,319 INFO root[11460] Start episode 2/10
+2025-05-03 13:39:42,504 INFO root[8860] Start episode 1/10
+2025-05-03 13:40:17,364 INFO root[16372] === Запуск train.py с нормальными логами ===
+=== Training started ===
+2025-05-03 13:40:19,186 INFO root[16372] Start episode 1/10

@@ -128,7 +128,15 @@
 
 ---
 
-## 4. Reward shaping (`trading_bot/methods.py`)
+## 4. Risk Management (`trading_bot/env.py`)
+
+- `stop_loss_pct` (float)  
+  - Процент максимального убытка для автоматического закрытия позиции.  
+  - Default: 0.02 (2%). ↑ — больше риска; ↓ — меньше просадки.
+
+---
+
+## 5. Reward shaping (`trading_bot/methods.py`)
 
 - `profit_weight` (`delta * 10.0`)
   - Усиленный стимул за прибыль.
@@ -143,14 +151,14 @@
 
 ---
 
-## 5. Data features & preprocessing
+## 6. Data features & preprocessing
 
 - Признаки: цена, объём, SMA, EMA, RSI, volatility ratio.
 - Сплит: train/val (по умолчанию ~80/20).
 
 ---
 
-## 6. Дополнительные гипотезы
+## 7. Дополнительные гипотезы
 
 - Mixed-precision (`mixed_float16`).
 - Prioritized Replay.

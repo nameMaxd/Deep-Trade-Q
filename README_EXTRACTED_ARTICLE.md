@@ -831,7 +831,7 @@ sentiment score.
 V. EXPERIMENTS AND RESULTS
 We evaluate our proposed approach by performing two
 different back-testing which is the process used by traders and
-analysts to assess the viability of a trading strategy by testing
+analysts to assert the viability of a trading strategy by testing
 it on historical data.
 $$
 We perform two different back-testing experiments,
@@ -1241,3 +1241,15 @@ vol. 21, no. 1, pp. 49–58, 1994.
 [39] S. Kau, “Algorithmic trading using reinforcement learning augmented
 with hidden markov model. working paper, stanford university.,” 2017.
 
+## Как запускать обучение TD3 на нужных данных
+
+Для обучения используй:
+
+```sh
+python train.py data/GOOG_2010-2024-06.csv --strategy=TD3 --window-size=47 --batch-size=32 --episode-count=50 --td3-timesteps=100000 --td3-noise-sigma=0.1 --td3-save-name=td3_model
+```
+
+- `data/GOOG_2010-2024-06.csv` — основной тренировочный датасет
+- OOS для теста: `data/GOOG_2024-07_2025-04.csv`
+
+**Не забудь:** если меняешь путь к файлу, указывай его первым аргументом!

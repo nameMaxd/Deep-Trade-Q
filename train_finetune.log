@@ -48,3 +48,51 @@
 2025-05-03 13:40:17,364 INFO root[16372] === Запуск train.py с нормальными логами ===
 === Training started ===
 2025-05-03 13:40:19,186 INFO root[16372] Start episode 1/10
+2025-05-03 13:42:07,230 INFO root[27220] === Запуск train.py с нормальными логами ===
+=== Training started ===
+2025-05-03 13:42:10,149 INFO root[27220] Start episode 1/10
+2025-05-03 13:43:37,137 INFO root[11460] End episode 2/10
+2025-05-03 13:43:37,148 INFO root[11460] Start episode 3/10
+2025-05-03 13:44:08,875 INFO root[16372] End episode 1/10
+2025-05-03 13:44:08,879 INFO root[16372] Start episode 2/10
+2025-05-03 13:46:08,145 INFO root[27220] End episode 1/10
+2025-05-03 13:46:08,152 INFO root[27220] Start episode 2/10
+2025-05-03 13:48:00,264 INFO root[11460] End episode 3/10
+2025-05-03 13:48:00,319 INFO root[11460] Start episode 4/10
+2025-05-03 13:48:31,670 INFO root[16372] End episode 2/10
+2025-05-03 13:48:31,688 INFO root[16372] Start episode 3/10
+2025-05-03 13:50:36,660 INFO root[27220] End episode 2/10
+2025-05-03 13:50:36,676 INFO root[27220] Start episode 3/10
+2025-05-03 13:52:53,284 INFO root[11460] End episode 4/10
+2025-05-03 13:52:53,316 INFO root[11460] Start episode 5/10
+2025-05-03 13:53:23,953 INFO root[16372] End episode 3/10
+2025-05-03 13:53:23,981 INFO root[16372] Start episode 4/10
+2025-05-03 13:55:31,392 INFO root[27220] End episode 3/10
+2025-05-03 13:55:31,416 INFO root[27220] Start episode 4/10
+2025-05-03 13:57:37,638 INFO root[11460] End episode 5/10
+2025-05-03 13:57:37,686 INFO root[11460] Start episode 6/10
+2025-05-03 13:58:02,822 INFO root[16372] End episode 4/10
+2025-05-03 13:58:02,844 INFO root[16372] Start episode 5/10
+2025-05-03 14:02:33,299 INFO root[11460] End episode 6/10
+2025-05-03 14:02:33,335 INFO root[11460] Start episode 7/10
+2025-05-03 14:02:53,307 INFO root[16372] End episode 5/10
+2025-05-03 14:02:53,344 INFO root[16372] Start episode 6/10
+2025-05-03 14:06:11,435 INFO root[11460] End episode 7/10
+2025-05-03 14:06:11,503 INFO root[11460] Start episode 8/10
+2025-05-03 14:06:23,976 INFO root[16372] End episode 6/10
+2025-05-03 14:06:24,029 INFO root[16372] Start episode 7/10
+2025-05-03 14:09:50,130 INFO root[11460] End episode 8/10
+2025-05-03 14:09:50,192 INFO root[11460] Start episode 9/10
+2025-05-03 14:09:58,124 INFO root[16372] End episode 7/10
+2025-05-03 14:09:58,173 INFO root[16372] Start episode 8/10
+2025-05-03 14:13:28,520 INFO root[11460] End episode 9/10
+2025-05-03 14:13:28,564 INFO root[11460] Start episode 10/10
+2025-05-03 14:13:34,690 INFO root[16372] End episode 8/10
+2025-05-03 14:13:34,758 INFO root[16372] Start episode 9/10
+2025-05-03 14:17:08,515 INFO root[11460] End episode 10/10
+2025-05-03 14:17:11,528 INFO root[16372] End episode 9/10
+2025-05-03 14:17:11,568 INFO root[16372] Start episode 10/10
+2025-05-03 14:19:42,083 INFO root[16372] End episode 10/10
+=== Training started ===
+=== Training started ===
+=== Training started ===

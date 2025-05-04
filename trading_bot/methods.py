@@ -28,25 +28,34 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
     # state_size устанавливается в Agent.__init__, get_state принимает min_v,max_v
     state = get_state(data, 0, window_size, min_v=min_v, max_v=max_v)
 
-    # tqdm будет печатать прогресс только в консоль, не в лог
-    for t in tqdm(range(data_length), total=data_length, desc=f'Ep {episode}/{ep_count}', dynamic_ncols=True, leave=True):
+    # Создаем tqdm прогресс-бар для шагов внутри эпизода
+    progress_bar = tqdm(range(data_length), total=data_length, desc=f'Ep {episode+1}/{ep_count}', position=0, leave=True)
+    
+    buy_count = 0
+    sell_count = 0
+    hold_count = 0
+    total_reward = 0
+    
+    for t in progress_bar:
         reward = 0
         next_state = get_state(data, t + 1, window_size, min_v=min_v, max_v=max_v)
 
         # select an action
         action = agent.act(state)
-        # Логируем action, reward, inventory (только первые 20 шагов)
-        if t < 20:
-            print(f'[train_model] t={t} action={action} reward={reward:.4f} inventory={agent.inventory}')
 
         # BUY
         if action == 1:
-            agent.inventory.append(float(data[t][0]))
-            reward = 2.0
-            if len(agent.inventory) <= WINDOW_SIZE:
-                reward += 1.0 * (WINDOW_SIZE - len(agent.inventory))
+            # Проверяем, не превышен ли лимит позиций (максимум 5 позиций)
+            if len(agent.inventory) < 5:  # Ограничиваем количество позиций
+                agent.inventory.append(float(data[t][0]))
+                reward = 2.0
+                if len(agent.inventory) <= window_size:
+                    reward += 1.0 * (window_size - len(agent.inventory))
+                buy_count += 1
             else:
-                reward -= 5.0
+                # Если лимит позиций превышен, меняем действие на HOLD
+                action = 0
+                reward = -5.0  # Штраф за попытку превысить лимит
 
         # SELL
         elif action == 2:
@@ -54,21 +63,36 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
                 bought_price = agent.inventory.pop(0)
                 delta = float(data[t][0]) - bought_price
                 reward = delta * 200.0 + 10.0
+                total_profit += delta
                 if delta < 0:
                     reward -= 50.0
+                sell_count += 1
             else:
                 reward = -20.0
+                # Если нечего продавать, меняем действие на HOLD
+                action = 0
 
         # HOLD
         else:
             reward = -1.0 * (t / len(data)) * (len(agent.inventory) + 1)
             if agent.inventory:
                 reward -= 0.1 * len(agent.inventory)
+            hold_count += 1
 
+        total_reward += reward
         done = (t == data_length - 1)
-        # Логируем reward (только первые 10 шагов)
-        if t < 10:
-            print(f'[train_model] t={t} reward={reward:.4f}')
+        
+        # Обновляем прогресс-бар с текущей статистикой каждые 100 шагов
+        if t % 100 == 0 or t == data_length - 1:
+            progress_bar.set_postfix({
+                'profit': f'{total_profit:.2f}',
+                'reward': f'{total_reward:.2f}',
+                'buy': buy_count,
+                'sell': sell_count,
+                'hold': hold_count,
+                'pos': len(agent.inventory)
+            })
+            
         agent.remember(state, action, reward, next_state, done)
 
         # replay every replay_freq steps to speed up training
@@ -78,12 +102,13 @@ def train_model(agent, episode, data, ep_count=100, batch_size=32, window_size=W
 
         state = next_state
 
-    # НЕ сохраняем веса внутри train_model при по-недельном обучении!
-    # if episode % 10 == 0:
-    #     agent.save(episode)
-
-    # Итоги эпохи логируем кратко (номер, профит, средний лосс)
-    logging.info(f"Epoch {episode}/{ep_count}: profit={total_profit:.2f}, avg_loss={np.mean(np.array(avg_loss)) if avg_loss else 'N/A'}")
+    # Закрываем прогресс-бар
+    progress_bar.close()
+    
+    # Подробная статистика в конце эпизода
+    logging.info(f"Epoch {episode+1}/{ep_count}: profit={total_profit:.2f}, avg_loss={np.mean(np.array(avg_loss)) if avg_loss else 'N/A'}")
+    logging.info(f"Actions: BUY={buy_count}, SELL={sell_count}, HOLD={hold_count}, Final positions={len(agent.inventory)}")
+    logging.info(f"Total reward: {total_reward:.2f}")
 
     return (episode, ep_count, total_profit, np.mean(np.array(avg_loss)))
 

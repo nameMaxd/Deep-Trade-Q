@@ -2,57 +2,46 @@ import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 from .ops import get_state
+from config import *  # Импортируем все параметры
 
 class TradingEnv(gym.Env):
     metadata = {"render.modes": ["human"]}
     
-    def _calculate_volume_profile(self, prices, volumes, num_bins=10, lookback=50):
-        """Рассчитывает профиль объема (горизонтальный объем) для использования в состоянии
-        
-        Args:
-            prices: массив цен
-            volumes: массив объемов
-            num_bins: количество ценовых уровней для анализа
-            lookback: количество дней для анализа назад
-        """
+    def _calculate_volume_profile(self, prices, volumes):
+        """Рассчитывает профиль объема на основе параметров из config.py"""
         self.volume_profile = []
         self.support_resistance_levels = []
         
         for i in range(len(prices)):
-            # Определяем диапазон данных для анализа
-            start_idx = max(0, i - lookback)
+            start_idx = max(0, i - VOLUME_LOOKBACK)
             end_idx = i + 1
             
-            if end_idx - start_idx < 10:  # Нужно минимальное количество точек
-                # Если недостаточно исторических данных, используем все доступные
-                price_range = np.linspace(min(prices[:end_idx]), max(prices[:end_idx]), num_bins)
-                vol_profile = np.zeros(num_bins)
+            if end_idx - start_idx < 10:
+                price_range = np.linspace(min(prices[:end_idx]), max(prices[:end_idx]), VOLUME_BINS)
+                vol_profile = np.zeros(VOLUME_BINS)
             else:
-                # Определяем ценовые диапазоны
-                price_range = np.linspace(min(prices[start_idx:end_idx]), max(prices[start_idx:end_idx]), num_bins)
-                vol_profile = np.zeros(num_bins)
+                price_range = np.linspace(min(prices[start_idx:end_idx]), max(prices[start_idx:end_idx]), VOLUME_BINS)
+                vol_profile = np.zeros(VOLUME_BINS)
                 
-                # Распределяем объемы по ценовым уровням
                 for j in range(start_idx, end_idx):
-                    # Находим ближайший ценовой уровень
                     bin_idx = np.abs(price_range - prices[j]).argmin()
                     vol_profile[bin_idx] += volumes[j]
             
-            # Нормализуем объемы
             if np.sum(vol_profile) > 0:
                 vol_profile = vol_profile / np.sum(vol_profile)
             
-            # Находим уровни поддержки и сопротивления (индексы бинов с наибольшим объемом)
-            support_resistance = price_range[np.argsort(vol_profile)[-3:]]  # Топ-3 уровня
+            support_resistance = price_range[np.argsort(vol_profile)[-3:]]
             
             self.volume_profile.append(vol_profile)
             self.support_resistance_levels.append(support_resistance)
             
-        # Преобразуем в numpy массивы для удобства
         self.volume_profile = np.array(self.volume_profile)
         self.support_resistance_levels = np.array(self.support_resistance_levels)
 
-    def __init__(self, prices, volumes, window_size=47, commission=0.001, min_trade_value=1000.0, max_inventory=8, carry_cost=0.0001, min_v=None, max_v=None, risk_lambda=0.1, drawdown_lambda=0.1, dual_phase=True, stop_loss_pct=0.05):
+    def __init__(self, prices, volumes, window_size=WINDOW_SIZE, commission=COMMISSION, 
+                 min_trade_value=MIN_TRADE_VALUE, max_inventory=MAX_INVENTORY, 
+                 carry_cost=CARRY_COST, min_v=None, max_v=None, risk_lambda=RISK_LAMBDA, 
+                 drawdown_lambda=DRAWDOWN_LAMBDA, dual_phase=DUAL_PHASE, stop_loss_pct=STOP_LOSS_PCT):
         super().__init__()
         self.prices = prices
         self.volumes = volumes
@@ -62,9 +51,9 @@ class TradingEnv(gym.Env):
         # transaction commission fraction
         self.commission = commission
         # minimum trade value threshold (in $) to open a position
-        self.min_trade_value = min_trade_value  # Увеличиваем размер сделки для более заметного профита
+        self.min_trade_value = min_trade_value
         # position limits and holding costs
-        self.max_inventory = max_inventory  # Максимальное количество позиций ограничено до 8
+        self.max_inventory = max_inventory
         self.carry_cost = carry_cost
         # global normalization bounds override
         self.global_min_v = min_v
@@ -72,9 +61,10 @@ class TradingEnv(gym.Env):
         # risk aversion parameters
         self.risk_lambda = risk_lambda
         self.drawdown_lambda = drawdown_lambda
+        # dual-phase training flag
         self.dual_phase = dual_phase
-        # Параметры стоп-лоссов
-        self.stop_loss_pct = stop_loss_pct  # Процент стоп-лосса (5% по умолчанию)
+        # stop-loss percentage
+        self.stop_loss_pct = stop_loss_pct
         self.action_space = spaces.Box(
             low=np.array([0.0]), high=np.array([2.0]), shape=(1,), dtype=np.float32
         )
@@ -135,29 +125,80 @@ class TradingEnv(gym.Env):
         state_ext = np.concatenate([state_arr, [inv_count_norm, avg_entry_ratio]]).astype(np.float32)
         return state_ext, {}
 
+    # def _calculate_reward(self, action):
+    #     """
+    #     Новый TD3-стиль: награда = изменение equity с учетом комиссии и штрафа за незначительные сделки.
+    #     """
+    #     # Текущий equity: сумма денег + стоимость всех позиций по текущей цене
+    #     current_price = self.prices[min(self.current_step, len(self.prices) - 1)]
+    #     # Считаем стоимость инвентаря
+    #     inventory_value = sum([qty * current_price for _, qty, _ in self.inventory])
+    #     equity = getattr(self, 'cash', 0.0) + inventory_value
+    #     # Предыдущий equity (на прошлом шаге)
+    #     if not hasattr(self, '_last_equity'):
+    #         self._last_equity = equity
+    #     # Изменение equity
+    #     delta_equity = equity - self._last_equity
+    #     # Усиливаем мотивацию к крупным сделкам и штрафуем за копеечные сделки
+    #     commission = self.commission * max(abs(delta_equity), self.min_trade_value)
+    #     small_trade_penalty = 0.01
+    #     # Если сделка меньше min_trade_value — жестко штрафуем
+    #     if abs(delta_equity) < self.min_trade_value:
+    #         small_trade_penalty = -2.0 * self.commission * self.min_trade_value
+    #     self._last_equity = equity
+    #     # Итоговая награда: изменение equity - комиссия - штраф
+    #     reward = delta_equity - commission + small_trade_penalty
+    #     return reward
+
     def _calculate_reward(self, action):
-        """
-        Новый TD3-стиль: награда = изменение equity с учетом комиссии и штрафа за незначительные сделки.
-        """
-        # Текущий equity: сумма денег + стоимость всех позиций по текущей цене
-        current_price = self.prices[min(self.current_step, len(self.prices) - 1)]
-        # Считаем стоимость инвентаря
-        inventory_value = sum([qty * current_price for _, qty, _ in self.inventory])
-        equity = getattr(self, 'cash', 0.0) + inventory_value
-        # Предыдущий equity (на прошлом шаге)
-        if not hasattr(self, '_last_equity'):
-            self._last_equity = equity
-        # Изменение equity
-        delta_equity = equity - self._last_equity
-        # Усиливаем мотивацию к крупным сделкам и штрафуем за копеечные сделки
-        commission = self.commission * max(abs(delta_equity), self.min_trade_value)
-        small_trade_penalty = 0.0
-        # Если сделка меньше min_trade_value — жестко штрафуем
-        if abs(delta_equity) < self.min_trade_value:
-            small_trade_penalty = -2.0 * self.commission * self.min_trade_value
-        self._last_equity = equity
-        # Итоговая награда: изменение equity - комиссия - штраф
-        reward = delta_equity - commission + small_trade_penalty
+    # Текущая цена и стоимость позиций
+        current_price = self.prices[self.current_step]
+        
+        # Реализованная прибыль от закрытых позиций
+        realized_pnl = sum([self._calculate_closed_pnl(price, qty, entry_price) 
+                            for price, qty, entry_price in self.closed_positions])
+        
+        # Нереализованная прибыль открытых позиций
+        unrealized_pnl = sum([self._calculate_unrealized_pnl(current_price, qty, entry_price) 
+                            for _, qty, entry_price in self.open_positions])
+        
+        # Комиссии по всем сделкам
+        total_commission = sum([abs(price * qty) * self.commission 
+                            for price, qty, _ in self.all_trades])
+        
+        # Проскальзывание (пример простой модели)
+        slippage_penalty = sum([abs(price - current_price) * abs(qty) 
+                            for price, qty, _ in self.last_step_trades])
+        
+        # Основная награда: реализованная прибыль - комиссии - проскальзывание
+        base_reward = realized_pnl - total_commission - slippage_penalty
+        
+        # Штраф за держание позиции (временной риск)
+        holding_penalty = -0.001 * abs(unrealized_pnl) * len(self.open_positions)
+        
+        # Штраф за частые сделки (overtrading)
+        trade_count_penalty = -0.01 * len(self.last_step_trades)
+        
+        # Адаптивный штраф за маленькие сделки
+        small_trade_penalty = 0
+        for price, qty, _ in self.last_step_trades:
+            trade_value = abs(price * qty)
+            if trade_value < self.min_trade_value:
+                small_trade_penalty -= (self.min_trade_value - trade_value) * 0.1
+        
+        # Итоговая награда
+        reward = base_reward + holding_penalty + trade_count_penalty + small_trade_penalty
+        
+        # Сохраняем историю для анализа
+        self._last_reward_components = {
+            'realized_pnl': realized_pnl,
+            'commissions': total_commission,
+            'slippage': slippage_penalty,
+            'holding_penalty': holding_penalty,
+            'trade_count_penalty': trade_count_penalty,
+            'small_trade_penalty': small_trade_penalty
+        }
+    
         return reward
 
     def step(self, action):
@@ -178,38 +219,7 @@ class TradingEnv(gym.Env):
         
         # ЗДЕСЬ МЫ ПРИНУДИТЕЛЬНО ЗАСТАВЛЯЕМ МОДЕЛЬ ТОРГОВАТЬ!
         # Простой алгоритм: покупаем, когда цена растет, продаем, когда падает
-        
-        # Проверяем изменение цены
-        if self.current_step > 0:
-            prev_price = float(self.prices[max(0, safe_step - 1)])
-            price_change = price - prev_price
-            
-            # Если цена растет - покупаем
-            if price_change > 0:
-                action = 0  # BUY
-            # Если цена падает - продаем, но только если есть позиции
-            elif price_change < 0 and len(self.inventory) > 0:
-                action = 1  # SELL
-            # Если цена падает, но нет позиций - покупаем на дне
-            elif price_change < 0 and len(self.inventory) == 0:
-                # С вероятностью 70% покупаем на падении (покупка на дне)
-                if np.random.random() < 0.7:
-                    action = 0  # BUY
-                else:
-                    action = 2  # HOLD
-            else:
-                # Если цена не изменилась, с вероятностью 50% делаем случайное действие
-                if np.random.random() < 0.5:
-                    action = np.random.choice([0, 1])  # Случайно покупаем или продаем
-                else:
-                    action = 2  # HOLD
-        else:
-            # На первом шаге всегда покупаем
-            action = 0  # BUY
-        
-        # Проверяем, что индекс не выходит за границы массива
-        safe_step = min(self.current_step, len(self.prices) - 1)
-        price = float(self.prices[safe_step])
+        # удалил потому что полный бред был
 
         # Проверяем стоп-лоссы перед выполнением действия агента
         # Это позволяет защитить от больших убытков независимо от решения агента

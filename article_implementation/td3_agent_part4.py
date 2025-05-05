@@ -326,6 +326,19 @@ def train_td3_agent(
         state = next_state
         episode_reward += reward
         
+        # BSH: подсчет сделок по всем активам
+        buy_trades = sum(getattr(env, 'buy_trades', [0]*getattr(env, 'n_assets', 1)))
+        sell_trades = sum(getattr(env, 'sell_trades', [0]*getattr(env, 'n_assets', 1)))
+        hold_trades = t - buy_trades - sell_trades
+        pbar.set_postfix({
+            'Reward': f'{episode_reward:.2f}',
+            'Portfolio': f'{getattr(env, "portfolio_value", 0):.2f}',
+            'Sharpe': f'{getattr(env, "sharpe_ratio", 0):.2f}',
+            'Buy': buy_trades,
+            'Sell': sell_trades,
+            'Hold': hold_trades
+        })
+        
         # Обучаем агента, если набрали достаточно данных
         if t >= start_timesteps:
             agent.train(batch_size)
@@ -339,7 +352,6 @@ def train_td3_agent(
             # Выводим информацию
             if verbose > 0 and episode_timesteps % 10 == 0:
                 print(f"Episode {episode_timesteps}: {episode_timesteps} steps, reward = {episode_reward:.2f}")
-            
             # Сбрасываем среду
             state, _ = env.reset()
             episode_reward = 0
@@ -347,8 +359,7 @@ def train_td3_agent(
         
         # Отчет каждые report_freq шагов
         if t % report_freq == 0 or t == 1:
-            print(f"[TRAIN] Step {t}: Reward={episode_reward:.2f}, Portfolio={env.portfolio_value:.2f}, Sharpe={getattr(env, 'sharpe_ratio', 0):.2f}")
-    
+            print(f"[TRAIN] Step {t}: Reward={episode_reward:.2f}, Portfolio={env.portfolio_value:.2f}, Sharpe={getattr(env, 'sharpe_ratio', 0):.2f}, Buy={buy_trades}, Sell={sell_trades}, Hold={hold_trades}")
     # Закрываем прогресс-бар
     pbar.close()
     

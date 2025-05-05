@@ -187,3 +187,25 @@ def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict]
         # Рассчитываем стоимость удержания позиции
         holding_cost = self.inventory[i] * df['Close'].iloc[current_idx] * self.carry_cost
         self.balance -= holding_cost
+
+    # Рассчитываем новую стоимость портфеля
+    self.portfolio_value = self.balance + sum([
+        self.inventory[i] * self.data_dict[ticker]['Close'].iloc[current_idx]
+        for i, ticker in enumerate(self.tickers)
+    ])
+    
+    # Ревард — относительная прибыль (PnL) за шаг
+    reward = (self.portfolio_value - prev_portfolio_value) / (prev_portfolio_value + 1e-8)
+    
+    # Продвигаем шаг
+    self.current_step += 1
+    done = self.current_step + self.window_size >= len(next(iter(self.data_dict.values()))) - 1
+    
+    info = {
+        'portfolio_value': self.portfolio_value,
+        'balance': self.balance,
+        'inventory': self.inventory.tolist(),
+        'buy_trades': self.buy_trades,
+        'sell_trades': self.sell_trades
+    }
+    return self._get_state(), reward, done, False, info
